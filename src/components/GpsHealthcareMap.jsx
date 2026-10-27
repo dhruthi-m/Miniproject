@@ -28,6 +28,7 @@ import 'leaflet/dist/leaflet.css';
 import {
   getGpsLocation,
   reverseGeocode,
+  searchLocationByQuery,
   fetchRealNearbyMedicalPlaces,
   getClosestRealAccreditedInstitutes,
   fetchGooglePlacesNearby,
@@ -54,11 +55,29 @@ export default function GpsHealthcareMap({
   const [facilities, setFacilities] = useState([]);
   const [loadingFacilities, setLoadingFacilities] = useState(false);
   const [userLocation, setUserLocation] = useState({
-    lat: 19.0760, // Default clean hub (Mumbai) until GPS/IP detected
-    lng: 72.8777,
+    lat: 13.3409, // Default clean hub (Tumakuru / Karnataka) until GPS/IP detected
+    lng: 77.1010,
     accuracy: null,
-    cityName: 'Mumbai, Maharashtra'
+    cityName: 'Tumakuru, Karnataka'
   });
+
+  // Location Search State (for searching any locality, city, campus or pincode)
+  const [locSearchQuery, setLocSearchQuery] = useState('');
+  const [locSuggestions, setLocSuggestions] = useState([]);
+  const [isSearchingLoc, setIsSearchingLoc] = useState(false);
+  const searchDebounceRef = useRef(null);
+  const searchDropdownRef = useRef(null);
+
+  // Close search suggestions on click outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target)) {
+        setLocSuggestions([]);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Optional Custom GPS / Google Places API Key state
   const [customApiKey, setCustomApiKey] = useState(() => {
@@ -140,7 +159,7 @@ export default function GpsHealthcareMap({
     setGpsError(null);
 
     try {
-      const coords = await getGpsLocation();
+      const coords = await getGpsLocation({ timeout: 9000, highAccuracy: true });
       const friendlyName = await reverseGeocode(coords.lat, coords.lng);
 
       setUserLocation({
@@ -151,10 +170,54 @@ export default function GpsHealthcareMap({
       });
       setGpsActive(true);
       setLocating(false);
+
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo([coords.lat, coords.lng], 14, { duration: 1 });
+      }
     } catch (err) {
       console.warn('GPS location request issue:', err);
-      setGpsError(err.message || 'Could not retrieve your location. You can select a city from the list below.');
+      setGpsError(err.message || 'Could not retrieve your location. You can drag the pin on the map or search your area.');
       setLocating(false);
+    }
+  };
+
+  // Location search input handler
+  const handleLocSearchChange = (e) => {
+    const val = e.target.value;
+    setLocSearchQuery(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (val.trim().length >= 2) {
+      searchDebounceRef.current = setTimeout(async () => {
+        setIsSearchingLoc(true);
+        try {
+          const results = await searchLocationByQuery(val);
+          setLocSuggestions(results);
+        } catch {
+          setLocSuggestions([]);
+        } finally {
+          setIsSearchingLoc(false);
+        }
+      }, 350);
+    } else {
+      setLocSuggestions([]);
+    }
+  };
+
+  // Select location from search suggestions
+  const handleSelectSearchResult = (loc) => {
+    setUserLocation({
+      lat: loc.lat,
+      lng: loc.lng,
+      accuracy: null,
+      cityName: loc.fullName || loc.name
+    });
+    setGpsActive(true);
+    setLocSuggestions([]);
+    setLocSearchQuery('');
+    setGpsError(null);
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([loc.lat, loc.lng], 14.5, { duration: 1.2 });
     }
   };
 
@@ -302,7 +365,26 @@ export default function GpsHealthcareMap({
     map.setView([userLocation.lat, userLocation.lng], 13.5, { animate: true });
     markersGroup.clearLayers();
 
-    // 1. User Location Beacon Marker
+    // Attach click listener on map to allow clicking anywhere to set exact location
+    map.off('click');
+    map.on('click', async (e) => {
+      if (e.originalEvent && e.originalEvent.target && e.originalEvent.target.closest('.facility-marker-wrapper, .leaflet-popup')) {
+        return;
+      }
+      const newLat = e.latlng.lat;
+      const newLng = e.latlng.lng;
+      const friendlyName = await reverseGeocode(newLat, newLng);
+      setUserLocation({
+        lat: newLat,
+        lng: newLng,
+        accuracy: null,
+        cityName: friendlyName
+      });
+      setGpsActive(true);
+      setGpsError(null);
+    });
+
+    // 1. User Location Beacon Marker (Draggable so user can correct coordinates)
     const userBeaconIcon = L.divIcon({
       className: 'gps-user-beacon-wrapper',
       html: `
@@ -320,17 +402,35 @@ export default function GpsHealthcareMap({
       popupAnchor: [0, -18]
     });
 
-    const userMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userBeaconIcon })
+    const userMarker = L.marker([userLocation.lat, userLocation.lng], { 
+      icon: userBeaconIcon,
+      draggable: true,
+      title: 'Drag me to adjust your location'
+    })
       .bindPopup(`
         <div style="font-family: inherit; font-size: 0.9rem; padding: 4px;">
           <strong style="color: #7560D9; display: flex; align-items: center; gap: 4px;">
-            <span>📍 Your Current Location</span>
+            <span>📍 Your Location</span>
           </strong>
-          <p style="margin: 4px 0 0 0; color: #4B5563; font-size: 0.82rem;">${userLocation.cityName}</p>
-          ${userLocation.accuracy ? `<span style="font-size: 0.75rem; color: #10B981;">GPS Accuracy: ±${userLocation.accuracy}m</span>` : ''}
+          <p style="margin: 4px 0 2px 0; color: #1F2937; font-size: 0.84rem; font-weight: 600;">${userLocation.cityName}</p>
+          ${userLocation.accuracy ? `<span style="font-size: 0.74rem; color: #10B981; font-weight: 600;">GPS Accuracy: ±${userLocation.accuracy}m</span><br/>` : ''}
+          <span style="font-size: 0.72rem; color: #6B7280; display: inline-block; margin-top: 4px;">💡 Drag this pin or click anywhere on the map to pinpoint your exact spot!</span>
         </div>
       `)
       .addTo(markersGroup);
+
+    userMarker.on('dragend', async (e) => {
+      const newLatLng = e.target.getLatLng();
+      const friendlyName = await reverseGeocode(newLatLng.lat, newLatLng.lng);
+      setUserLocation({
+        lat: newLatLng.lat,
+        lng: newLatLng.lng,
+        accuracy: null,
+        cityName: friendlyName
+      });
+      setGpsActive(true);
+      setGpsError(null);
+    });
 
     userMarkerRef.current = userMarker;
 
@@ -500,118 +600,192 @@ export default function GpsHealthcareMap({
         </div>
       </div>
 
-      {/* ── 3. GPS TRACKER CONTROL BAR ─────────────────────────────────────── */}
+      {/* ── 3. GPS TRACKER CONTROL BAR & LOCATION SEARCH ───────────────────── */}
       <div className="gps-tracker-control-card">
-        <div className="gps-control-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {gpsActive ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn-gps-trigger active"
-                onClick={handleDisableLocation}
-                id="btn-enable-gps-tracking"
-                title="Click to Turn Off GPS Location"
-              >
-                <Navigation size={18} />
-                <span>GPS Location Active</span>
-              </button>
-
-              <button
-                type="button"
-                className="btn-disable-gps"
-                onClick={handleDisableLocation}
-                id="btn-turn-off-location"
-                title="Turn off GPS location and return to manual city mode"
-              >
-                <MapPinOff size={16} />
-                <span>Turn Off Location</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className={`btn-gps-trigger ${locating ? 'locating' : ''}`}
-              onClick={handleEnableLocation}
-              disabled={locating}
-              id="btn-enable-gps-tracking"
-              title="Acquire live GPS coordinates"
-            >
-              {locating ? (
-                <>
-                  <RefreshCw size={18} className="spinner-rotate" />
-                  <span>Acquiring GPS Signal...</span>
-                </>
-              ) : (
-                <>
-                  <MapPin size={18} />
-                  <span>📍 Enable GPS Location</span>
-                </>
+        {/* Top Row: Direct Location Search Bar */}
+        <div className="location-search-row">
+          <div className="location-search-wrapper" ref={searchDropdownRef}>
+            <div className="location-search-input-box">
+              <Search size={16} className="loc-search-icon" />
+              <input
+                type="text"
+                className="location-search-input"
+                placeholder="Search your locality, city, campus or pincode (e.g. Tumakuru, SIT, 572101)..."
+                value={locSearchQuery}
+                onChange={handleLocSearchChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && locSuggestions.length > 0) {
+                    handleSelectSearchResult(locSuggestions[0]);
+                  }
+                }}
+              />
+              {isSearchingLoc && <RefreshCw size={14} className="spinner-rotate loc-search-spinner" />}
+              {locSearchQuery && (
+                <button 
+                  type="button" 
+                  className="btn-clear-loc-search"
+                  onClick={() => { setLocSearchQuery(''); setLocSuggestions([]); }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
               )}
-            </button>
-          )}
-
-          <div className="gps-status-indicator">
-            <span className={`status-dot ${gpsActive ? 'online' : locating ? 'pending' : 'offline'}`} />
-            <div className="status-text-wrap">
-              <span className="status-label">{gpsActive ? 'Current Search Area (GPS):' : 'Current Search Area (Manual):'}</span>
-              <strong className="status-location-name" title={userLocation.cityName}>
-                {userLocation.cityName}
-              </strong>
             </div>
-            {gpsActive && userLocation.accuracy && (
-              <span className="status-accuracy-badge">
-                ±{userLocation.accuracy}m
-              </span>
+
+            {locSuggestions.length > 0 && (
+              <div className="loc-suggestions-dropdown">
+                {locSuggestions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="loc-suggestion-item"
+                    onClick={() => handleSelectSearchResult(item)}
+                  >
+                    <MapPin size={15} className="loc-suggestion-icon" />
+                    <div className="loc-suggestion-info">
+                      <strong className="loc-suggestion-title">{item.name}</strong>
+                      {item.fullName && item.fullName !== item.name && (
+                        <span className="loc-suggestion-subtitle">{item.fullName}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Quick Selector, Re-Center & Optional Custom API Key */}
-        <div className="gps-control-right">
-          <button
-            type="button"
-            className="btn-recenter"
-            onClick={() => {
-              setKeyInput(customApiKey);
-              setShowKeyModal(true);
-            }}
-            title="Configure GPS / Google Places API Key"
-          >
-            <Key size={15} />
-            <span>{customApiKey ? 'Google API Key Active' : 'API Key (Optional)'}</span>
-          </button>
+        {/* Bottom Row: GPS Controls, Status & City Dropdown */}
+        <div className="gps-controls-flex-row">
+          <div className="gps-control-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {gpsActive ? (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`btn-gps-trigger active ${locating ? 'locating' : ''}`}
+                  onClick={handleEnableLocation}
+                  disabled={locating}
+                  id="btn-enable-gps-tracking"
+                  title="Click to Refresh / Re-detect high precision GPS"
+                >
+                  {locating ? (
+                    <>
+                      <RefreshCw size={18} className="spinner-rotate" />
+                      <span>Refining GPS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Navigation size={18} />
+                      <span>GPS Active (Click to Refresh)</span>
+                    </>
+                  )}
+                </button>
 
-          <button
-            type="button"
-            className="btn-recenter"
-            onClick={centerOnUserGps}
-            title="Re-center map on your location"
-          >
-            <Compass size={16} />
-            <span>Center on Me</span>
-          </button>
+                <button
+                  type="button"
+                  className="btn-disable-gps"
+                  onClick={handleDisableLocation}
+                  id="btn-turn-off-location"
+                  title="Turn off GPS location and return to manual city mode"
+                >
+                  <MapPinOff size={16} />
+                  <span>Turn Off</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={`btn-gps-trigger ${locating ? 'locating' : ''}`}
+                onClick={handleEnableLocation}
+                disabled={locating}
+                id="btn-enable-gps-tracking"
+                title="Acquire live GPS coordinates"
+              >
+                {locating ? (
+                  <>
+                    <RefreshCw size={18} className="spinner-rotate" />
+                    <span>Detecting GPS Location...</span>
+                  </>
+                ) : (
+                  <>
+                    <MapPin size={18} />
+                    <span>📍 Detect Current Location</span>
+                  </>
+                )}
+              </button>
+            )}
 
-          <div className="city-selector-wrap">
-            <label htmlFor="city-select-dropdown" className="sr-only">Change City</label>
-            <select
-              id="city-select-dropdown"
-              className="city-select-dropdown"
-              value={userLocation.cityName}
-              onChange={(e) => {
-                const found = POPULAR_LOCATIONS.find(l => l.name === e.target.value);
-                if (found) handleCitySelect(found);
-              }}
-            >
-              <option value={userLocation.cityName}>
-                📍 {gpsActive ? 'Current GPS Coordinates' : userLocation.cityName}
-              </option>
-              {POPULAR_LOCATIONS.map(loc => (
-                <option key={loc.id} value={loc.name}>
-                  {loc.name}
-                </option>
-              ))}
-            </select>
+            <div className="gps-status-indicator">
+              <span className={`status-dot ${gpsActive ? 'online' : locating ? 'pending' : 'offline'}`} />
+              <div className="status-text-wrap">
+                <span className="status-label">{gpsActive ? 'Current Location (Active):' : 'Current Search Area:'}</span>
+                <strong className="status-location-name" title={userLocation.cityName}>
+                  {userLocation.cityName}
+                </strong>
+              </div>
+              {gpsActive && userLocation.accuracy && (
+                <span className="status-accuracy-badge" title="Estimated GPS radius error">
+                  ±{userLocation.accuracy}m
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Quick Selector, Re-Center & Optional Custom API Key */}
+          <div className="gps-control-right">
+            <button
+              type="button"
+              className="btn-recenter"
+              onClick={() => {
+                setKeyInput(customApiKey);
+                setShowKeyModal(true);
+              }}
+              title="Configure GPS / Google Places API Key"
+            >
+              <Key size={15} />
+              <span>{customApiKey ? 'Google API Key Active' : 'API Key (Optional)'}</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-recenter"
+              onClick={centerOnUserGps}
+              title="Re-center map on your location"
+            >
+              <Compass size={16} />
+              <span>Center on Me</span>
+            </button>
+
+            <div className="city-selector-wrap">
+              <label htmlFor="city-select-dropdown" className="sr-only">Change City</label>
+              <select
+                id="city-select-dropdown"
+                className="city-select-dropdown"
+                value={userLocation.cityName}
+                onChange={(e) => {
+                  const found = POPULAR_LOCATIONS.find(l => l.name === e.target.value);
+                  if (found) handleCitySelect(found);
+                }}
+              >
+                <option value={userLocation.cityName}>
+                  📍 {userLocation.cityName}
+                </option>
+                {POPULAR_LOCATIONS.map(loc => (
+                  <option key={loc.id} value={loc.name}>
+                    {loc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Location Interactive Adjustment Hint */}
+        <div className="location-guidance-hint">
+          <Sparkles size={14} className="guidance-hint-icon" />
+          <span>
+            <strong>Need to adjust?</strong> You can <strong>drag the purple pin</strong> on the map, <strong>click anywhere on the map</strong>, or <strong>type your locality above</strong> to set your exact location.
+          </span>
         </div>
       </div>
 

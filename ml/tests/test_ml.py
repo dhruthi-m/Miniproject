@@ -136,8 +136,8 @@ def test_predict_bipolar_low_risk():
     assert data["predicted_class"] == 0
     assert "Baseline / Low Bipolar" in data["prediction_label"]
 
-def test_unsupported_age_group_child():
-    """Verify age group '6-12' returns status 'unsupported' gracefully without crashing."""
+def test_supported_age_group_child():
+    """Verify age group '6-12' is supported and yields a valid prediction."""
     payload = {
         "assessment_type": "schizophrenia",
         "age_group": "6-12",
@@ -146,12 +146,11 @@ def test_unsupported_age_group_child():
     response = client.post("/api/ml/predict", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "unsupported"
-    assert data["is_supported"] is False
-    assert "not scientifically validated" in data["unsupported_reason"]
+    assert data["status"] == "success"
+    assert data["is_supported"] is True
 
-def test_unsupported_age_group_teen():
-    """Verify age group '13-18' returns status 'unsupported' gracefully."""
+def test_supported_age_group_teen():
+    """Verify age group '13-18' is supported and yields a valid prediction."""
     payload = {
         "assessment_type": "bipolar",
         "age_group": "13-18",
@@ -160,8 +159,8 @@ def test_unsupported_age_group_teen():
     response = client.post("/api/ml/predict", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "unsupported"
-    assert data["is_supported"] is False
+    assert data["status"] == "success"
+    assert data["is_supported"] is True
 
 def test_invalid_assessment_type():
     """Verify 400 bad request for unrecognized test types."""

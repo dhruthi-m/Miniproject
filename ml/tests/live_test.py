@@ -37,8 +37,8 @@ req2 = urllib.request.Request(
 with urllib.request.urlopen(req2) as res:
     print(res.read().decode())
 
-print("\n4. Testing POST /api/ml/predict with unsupported age group '6-12'...")
-unsupported_data = json.dumps({
+print("\n4. Testing POST /api/ml/predict with child age group '6-12'...")
+child_data = json.dumps({
     "assessment_type": "schizophrenia",
     "age_group": "6-12",
     "answers": [{"id": 1, "answer": "True"}]
@@ -46,7 +46,7 @@ unsupported_data = json.dumps({
 
 req3 = urllib.request.Request(
     "http://127.0.0.1:8000/api/ml/predict",
-    data=unsupported_data,
+    data=child_data,
     headers={"Content-Type": "application/json"}
 )
 

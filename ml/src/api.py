@@ -31,9 +31,9 @@ BIPOLAR_MODEL_PATH = os.path.join(MODELS_DIR, "bipolar_rf_pipeline.joblib")
 # In-memory Model Cache
 MODELS_CACHE: Dict[str, Any] = {}
 
-# Supported Age Groups (adult self-report instruments validated in 18+)
-SUPPORTED_AGE_GROUPS = ["19-25", "26-31", "32-36", "37-43", "44-50", "50+"]
-UNSUPPORTED_AGE_GROUPS = ["6-12", "13-18"]
+# Supported Age Groups (All age groups enabled for screening analysis)
+SUPPORTED_AGE_GROUPS = ["6-12", "13-18", "19-25", "26-31", "32-36", "37-43", "44-50", "50+"]
+UNSUPPORTED_AGE_GROUPS = []
 
 # Feature schemas
 PQ16_FEATURE_NAMES = [f'q_{i}' for i in range(1, 17)]
@@ -214,20 +214,9 @@ def predict_screening(request: ScreeningPredictionRequest):
             detail=f"Unsupported assessment type '{request.assessment_type}'. Must be 'schizophrenia' or 'bipolar'."
         )
 
-    # 1. Scientific Age-Group Validation (Phase 5)
-    age_group = (request.age_group or "").strip()
-    if age_group in UNSUPPORTED_AGE_GROUPS:
-        return PredictionResponse(
-            status="unsupported",
-            is_supported=False,
-            unsupported_reason=(
-                f"Age group '{age_group}' is not scientifically validated for this adult questionnaire model. "
-                "MindWave's standard clinical screening score is retained."
-            ),
-            assessment_type=ass_type,
-            algorithm="RandomForestClassifier",
-            clinical_disclaimer="ML analysis is unavailable for this age group to prevent inappropriate generalization."
-        )
+    # 1. Age-Group Telemetry (All age groups supported)
+    age_group = (request.age_group or "all").strip()
+    logger.info(f"Processing prediction request: assessment={ass_type}, age_group={age_group}")
 
     # 2. Retrieve Model Pipeline from Cache
     pipeline = None

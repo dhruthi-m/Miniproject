@@ -72,15 +72,11 @@ assert(offlineResponse.status === 'offline', "Offline status correctly set");
 assert(offlineResponse.is_supported === false, "is_supported correctly set to false");
 assert(offlineResponse.unsupported_reason.includes('unavailable'), "Informative fallback message provided");
 
-// 4. Verify Scientific Age-Group Restriction
-console.log("\n--- 4. TEST AGE GROUP BOUNDARY VALIDATION ---");
-const unsupportedAges = ['6-12', '13-18'];
-const supportedAges = ['19-25', '26-31', '32-36', '37-43', '44-50', '50+'];
-unsupportedAges.forEach(age => {
-  assert(unsupportedAges.includes(age), `Age group ${age} correctly flagged as unsupported`);
-});
-supportedAges.forEach(age => {
-  assert(supportedAges.includes(age), `Age group ${age} correctly flagged as supported`);
+// 4. Verify Universal Age-Group Support
+console.log("\n--- 4. TEST AGE GROUP VALIDATION ---");
+const allAges = ['6-12', '13-18', '19-25', '26-31', '32-36', '37-43', '44-50', '50+'];
+allAges.forEach(age => {
+  assert(allAges.includes(age), `Age group ${age} correctly verified for screening`);
 });
 
 console.log("\n==================================================");

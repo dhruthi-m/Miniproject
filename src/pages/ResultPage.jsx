@@ -465,48 +465,6 @@ export default function ResultPage({ onNavigate }) {
                   </ul>
                 </div>
 
-                {/* 5. What This Result Can and Cannot Tell You */}
-                <div className="result-section-card">
-
-                  <div className="result-section-card-header">
-                    <div className="result-card-icon-badge">
-                      <HelpCircle size={18} />
-                    </div>
-                    <h3 className="result-section-card-title">What This Result Can and Cannot Tell You</h3>
-                  </div>
-                  <p className="result-card-paragraph">
-                    Understanding the clear boundaries of a self-reflection screening tool helps put your score in proper perspective:
-                  </p>
-                  
-                  <div className="can-cannot-container">
-                    <div className="can-column">
-                      <div className="column-header-row">
-                        <CheckCircle2 size={18} />
-                        <span>What This Result CAN Tell You</span>
-                      </div>
-                      <ul className="column-list">
-                        <li>Identifies specific sensory, perceptual, or thought patterns you noticed and reported.</li>
-                        <li>Measures your personal level of distress and how much these sensations affect your daily life.</li>
-                        <li>Provides an organized, structured summary you can share with a counselor or healthcare provider.</li>
-                        <li>Highlights when healthy habits or a conversation with a professional could be helpful.</li>
-                      </ul>
-                    </div>
-
-                    <div className="cannot-column">
-                      <div className="column-header-row">
-                        <X size={18} />
-                        <span>What This Result CANNOT Tell You</span>
-                      </div>
-                      <ul className="column-list">
-                        <li><strong>Does not confirm schizophrenia or any other diagnosis.</strong> Screening questionnaires cannot diagnose psychiatric conditions.</li>
-                        <li>Does not determine future outcomes or indicate certainty of any mental health disorder.</li>
-                        <li>Cannot tell whether sensations stem from stress, sleep loss, physical illness, or medication.</li>
-                        <li>Cannot replace a comprehensive, in-person clinical evaluation by a licensed mental health clinician.</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Concise Screening Disclaimer */}
                 <div className="concise-disclaimer-card">
                   <Info size={18} className="disclaimer-icon" />

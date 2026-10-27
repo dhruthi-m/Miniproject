@@ -20,46 +20,130 @@ export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   return Math.round(d * 10) / 10;
 }
 
-// ── 2. HIGH ACCURACY BROWSER GEOLOCATION ────────────────────────────────────
-export function getGpsLocation() {
+// ── 2. HIGH ACCURACY PROGRESSIVE BROWSER GEOLOCATION ───────────────────────
+export function getGpsLocation(options = {}) {
+  const { timeout = 8000, highAccuracy = true } = options;
+
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation is not supported by your browser.'));
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: Math.round(position.coords.accuracy || 20),
-          timestamp: position.timestamp
-        });
-      },
-      (error) => {
-        let msg = 'Unable to retrieve your location.';
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            msg = 'Location permission was denied. Please allow location access in your browser or select a city manually.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            msg = 'Location information is currently unavailable.';
-            break;
-          case error.TIMEOUT:
-            msg = 'Location request timed out. Please try again.';
-            break;
-          default:
-            msg = error.message || msg;
-        }
-        reject(new Error(msg));
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0
+    let bestPosition = null;
+    let watchId = null;
+    let settled = false;
+    let timeoutTimer = null;
+
+    const cleanup = () => {
+      if (watchId !== null) {
+        try {
+          navigator.geolocation.clearWatch(watchId);
+        } catch {}
+        watchId = null;
       }
-    );
+      if (timeoutTimer !== null) {
+        clearTimeout(timeoutTimer);
+        timeoutTimer = null;
+      }
+    };
+
+    const commitPosition = (pos) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: Math.round(pos.coords.accuracy || 20),
+        timestamp: pos.timestamp
+      });
+    };
+
+    const handleSuccess = (position) => {
+      const acc = position.coords.accuracy || 999;
+      if (!bestPosition || acc < (bestPosition.coords.accuracy || 999)) {
+        bestPosition = position;
+      }
+
+      // If accuracy is sharp (<= 30 meters), resolve immediately
+      if (acc <= 30) {
+        commitPosition(position);
+      }
+    };
+
+    const handleError = (error) => {
+      if (error.code === error.PERMISSION_DENIED) {
+        if (!settled) {
+          settled = true;
+          cleanup();
+          reject(new Error('Location permission was denied. Please allow location access in your browser or search your city manually.'));
+        }
+        return;
+      }
+
+      // For TIMEOUT or POSITION_UNAVAILABLE, attempt standard-accuracy fallback
+      if (!settled && !bestPosition) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => commitPosition(pos),
+          (fallbackErr) => {
+            if (!settled) {
+              settled = true;
+              cleanup();
+              let msg = 'Unable to retrieve precise GPS signal.';
+              if (fallbackErr.code === fallbackErr.TIMEOUT) {
+                msg = 'Location request timed out. Please try clicking "Enable GPS Location" again or search your area.';
+              } else if (fallbackErr.code === fallbackErr.POSITION_UNAVAILABLE) {
+                msg = 'Location information is currently unavailable on this device. You can search or select your city manually.';
+              }
+              reject(new Error(msg));
+            }
+          },
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+        );
+      }
+    };
+
+    // Use watchPosition to let GPS hardware and Wi-Fi positioning settle to the highest accuracy
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        handleSuccess,
+        handleError,
+        {
+          enableHighAccuracy: highAccuracy,
+          timeout: timeout,
+          maximumAge: 0
+        }
+      );
+    } catch {
+      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
+        enableHighAccuracy: true,
+        timeout: timeout,
+        maximumAge: 0
+      });
+    }
+
+    // After 3.5 seconds, if we have acquired any position, resolve with the best recorded one
+    timeoutTimer = setTimeout(() => {
+      if (!settled) {
+        if (bestPosition) {
+          commitPosition(bestPosition);
+        } else {
+          // One final low-accuracy attempt
+          navigator.geolocation.getCurrentPosition(
+            (pos) => commitPosition(pos),
+            () => {
+              if (!settled) {
+                settled = true;
+                cleanup();
+                reject(new Error('GPS signal acquisition timed out. Please try again or search your city/pincode.'));
+              }
+            },
+            { enableHighAccuracy: false, timeout: 3500, maximumAge: 120000 }
+          );
+        }
+      }
+    }, 3500);
   });
 }
 
@@ -103,30 +187,166 @@ export async function detectApproximateLocationByIp() {
   return null;
 }
 
-// ── 4. REVERSE GEOCODING (OSM NOMINATIM) ────────────────────────────────────
+// ── 4. MULTI-PROVIDER REVERSE GEOCODING (PHOTON + BIGDATACLOUD + NOMINATIM) ─
 export async function reverseGeocode(lat, lng) {
+  if (!lat || !lng) return 'Unknown Location';
+
+  // 1. Primary: Photon Reverse Geocoder (fast, CORS-friendly, rich Indian locality data)
   try {
+    const photonCtrl = new AbortController();
+    const photonTimeout = setTimeout(() => photonCtrl.abort(), 2500);
+    const res = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`, {
+      signal: photonCtrl.signal
+    });
+    clearTimeout(photonTimeout);
+    if (res.ok) {
+      const data = await res.json();
+      const p = data.features?.[0]?.properties;
+      if (p) {
+        const localSpot = p.street || p.name || p.district || p.suburb || '';
+        const city = p.city || p.town || p.county || '';
+        const state = p.state || '';
+
+        const parts = [];
+        if (localSpot && localSpot !== city) parts.push(localSpot);
+        if (city) parts.push(city);
+        if (state && !parts.some(pt => pt.toLowerCase().includes(state.toLowerCase()))) {
+          parts.push(state);
+        }
+
+        if (parts.length > 0) {
+          return parts.join(', ');
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Secondary: BigDataCloud Client Reverse Geocode (unlimited, client-side, zero API key)
+  try {
+    const bdcCtrl = new AbortController();
+    const bdcTimeout = setTimeout(() => bdcCtrl.abort(), 2500);
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
+      { signal: bdcCtrl.signal }
+    );
+    clearTimeout(bdcTimeout);
+    if (res.ok) {
+      const data = await res.json();
+      const locality = data.locality || '';
+      const city = data.city || '';
+      const state = data.principalSubdivision || '';
+      const parts = [];
+      if (locality) parts.push(locality);
+      if (city && city !== locality) parts.push(city);
+      if (state && !parts.includes(state)) parts.push(state);
+      if (parts.length > 0) {
+        return parts.join(', ');
+      }
+    }
+  } catch {}
+
+  // 3. Tertiary: OpenStreetMap Nominatim with custom header and timeout
+  try {
+    const nomCtrl = new AbortController();
+    const nomTimeout = setTimeout(() => nomCtrl.abort(), 2500);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=15&addressdetails=1`,
       {
+        signal: nomCtrl.signal,
         headers: {
           'Accept-Language': 'en'
         }
       }
     );
-    if (!res.ok) throw new Error('Failed to reverse geocode');
-    const data = await res.json();
-    const addr = data.address || {};
-    const suburb = addr.suburb || addr.neighbourhood || addr.residential || addr.city_district || '';
-    const city = addr.city || addr.town || addr.county || addr.state_district || 'Local Area';
-    const state = addr.state || '';
-    
-    let label = suburb ? `${suburb}, ${city}` : city;
-    if (state && !label.includes(state)) label += `, ${state}`;
-    return label || data.display_name?.split(',').slice(0, 3).join(',') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-  } catch {
-    return `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-  }
+    clearTimeout(nomTimeout);
+    if (res.ok) {
+      const data = await res.json();
+      const addr = data.address || {};
+      const suburb = addr.suburb || addr.neighbourhood || addr.residential || addr.road || '';
+      const city = addr.city || addr.town || addr.county || addr.state_district || '';
+      const state = addr.state || '';
+      
+      const parts = [];
+      if (suburb) parts.push(suburb);
+      if (city && city !== suburb) parts.push(city);
+      if (state && !parts.includes(state)) parts.push(state);
+      if (parts.length > 0) return parts.join(', ');
+    }
+  } catch {}
+
+  return `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+}
+
+// ── 4B. FORWARD SEARCH ANY LOCATION BY QUERY (CITY, AREA, PINCODE) ───────────
+export async function searchLocationByQuery(query) {
+  if (!query || query.trim().length < 2) return [];
+  const q = query.trim();
+
+  // 1. Try Photon Geocoder
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3500);
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6`, {
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.features && data.features.length > 0) {
+        return data.features.map((f, idx) => {
+          const p = f.properties || {};
+          const [lng, lat] = f.geometry?.coordinates || [0, 0];
+          const parts = [
+            p.name,
+            p.street,
+            p.suburb || p.district,
+            p.city || p.town,
+            p.state,
+            p.country
+          ].filter(Boolean);
+
+          const displayParts = [];
+          parts.forEach(part => {
+            if (!displayParts.some(dp => dp.toLowerCase() === part.toLowerCase())) {
+              displayParts.push(part);
+            }
+          });
+
+          return {
+            id: `photon-${p.osm_id || idx}-${Math.random().toString(36).substr(2, 5)}`,
+            name: displayParts.slice(0, 3).join(', ') || p.name || q,
+            fullName: displayParts.join(', '),
+            lat,
+            lng,
+            postcode: p.postcode || ''
+          };
+        }).filter(item => item.lat && item.lng);
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to Nominatim
+  try {
+    const ctrl2 = new AbortController();
+    const timer2 = setTimeout(() => ctrl2.abort(), 3500);
+    const res2 = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`,
+      { signal: ctrl2.signal, headers: { 'Accept-Language': 'en' } }
+    );
+    clearTimeout(timer2);
+    if (res2.ok) {
+      const data = await res2.json();
+      return (data || []).map(item => ({
+        id: `nom-${item.place_id}`,
+        name: item.display_name.split(',').slice(0, 3).join(',').trim(),
+        fullName: item.display_name,
+        lat: parseFloat(item.lat),
+        lng: parseFloat(item.lon)
+      })).filter(item => !isNaN(item.lat) && !isNaN(item.lng));
+    }
+  } catch {}
+
+  return [];
 }
 
 // ── 5. REAL ACCREDITED TERTIARY PSYCHIATRIC HOSPITALS (VERIFIED GOVERNMENT & APEX INSTITUTES) ──
@@ -804,12 +1024,20 @@ export const EMERGENCY_HOTLINES = [
 
 // ── 10. PREDEFINED CITY HUBS FOR MANUAL SELECTION ───────────────────────────
 export const POPULAR_LOCATIONS = [
-  { id: 'mumbai', name: 'Mumbai, Maharashtra', lat: 19.0760, lng: 72.8777 },
-  { id: 'delhi', name: 'New Delhi / NCR', lat: 28.6139, lng: 77.2090 },
+  { id: 'tumakuru', name: 'Tumakuru / Tumkur, Karnataka', lat: 13.3409, lng: 77.1010 },
   { id: 'bangalore', name: 'Bengaluru, Karnataka', lat: 12.9716, lng: 77.5946 },
+  { id: 'mysore', name: 'Mysuru (Mysore), Karnataka', lat: 12.2958, lng: 76.6394 },
+  { id: 'mangaluru', name: 'Mangaluru, Karnataka', lat: 12.9141, lng: 74.8560 },
+  { id: 'mumbai', name: 'Mumbai, Maharashtra', lat: 19.0760, lng: 72.8777 },
+  { id: 'pune', name: 'Pune, Maharashtra', lat: 18.5204, lng: 73.8567 },
+  { id: 'delhi', name: 'New Delhi / NCR', lat: 28.6139, lng: 77.2090 },
   { id: 'hyderabad', name: 'Hyderabad, Telangana', lat: 17.3850, lng: 78.4867 },
   { id: 'chennai', name: 'Chennai, Tamil Nadu', lat: 13.0827, lng: 80.2707 },
   { id: 'kolkata', name: 'Kolkata, West Bengal', lat: 22.5726, lng: 88.3639 },
-  { id: 'pune', name: 'Pune, Maharashtra', lat: 18.5204, lng: 73.8567 },
-  { id: 'ahmedabad', name: 'Ahmedabad, Gujarat', lat: 23.0225, lng: 72.5714 }
+  { id: 'ahmedabad', name: 'Ahmedabad, Gujarat', lat: 23.0225, lng: 72.5714 },
+  { id: 'jaipur', name: 'Jaipur, Rajasthan', lat: 26.9124, lng: 75.7873 },
+  { id: 'chandigarh', name: 'Chandigarh / Tricity', lat: 30.7333, lng: 76.7794 },
+  { id: 'kochi', name: 'Kochi (Cochin), Kerala', lat: 9.9312, lng: 76.2673 },
+  { id: 'lucknow', name: 'Lucknow, Uttar Pradesh', lat: 26.8467, lng: 80.9462 }
 ];
+
