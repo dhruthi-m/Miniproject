@@ -35,7 +35,14 @@ import {
   Calculator, 
   X, 
   PieChart, 
-  ChevronUp 
+  ChevronUp,
+  ThumbsUp,
+  Meh,
+  ThumbsDown,
+  TrendingUp,
+  ArrowDownRight,
+  ArrowUpRight,
+  Minus
 } from 'lucide-react';
 import { useScreening } from '../context/ScreeningContext';
 import GpsHealthcareMap from '../components/GpsHealthcareMap';
@@ -43,7 +50,14 @@ import ExperimentalMlSection from '../components/ExperimentalMlSection';
 import { fetchMlPrediction } from '../services/mlService';
 
 export default function ResultPage({ onNavigate }) {
-  const { latestResult, activeTest, startTest } = useScreening();
+  const { 
+    latestResult, 
+    activeTest, 
+    startTest, 
+    history, 
+    recommendationFeedback, 
+    submitRecommendationFeedback 
+  } = useScreening();
 
   // Accordion state: null (all collapsed by default) or heading index (1-6)
   const [expandedSection, setExpandedSection] = useState(null);
@@ -252,6 +266,101 @@ export default function ResultPage({ onNavigate }) {
     window.print();
   };
 
+  const previousSession = React.useMemo(() => {
+    if (!history || history.length < 2) return null;
+    return history.find(h => h.created_at !== latestResult?.created_at && (h.id !== latestResult?.id || !latestResult?.id)) || history[1];
+  }, [history, latestResult]);
+
+  const longitudinalDiff = React.useMemo(() => {
+    if (!previousSession) return null;
+    const prevScore = previousSession.score ?? previousSession.symptom_count ?? 0;
+    const currScore = score;
+    const delta = currScore - prevScore;
+    const prevDistress = previousSession.distress_score ?? 0;
+    const deltaDistress = totalDistressPoints - prevDistress;
+    return {
+      prevScore,
+      prevDate: previousSession.date || 'Previous Session',
+      prevCategory: previousSession.result_category || 'Assessed',
+      delta,
+      deltaDistress,
+      direction: delta < 0 ? 'decreased' : (delta > 0 ? 'increased' : 'stable')
+    };
+  }, [previousSession, score, totalDistressPoints]);
+
+  const renderRecFeedbackBar = (key, title, category) => {
+    const currentRating = recommendationFeedback?.[key];
+    return (
+      <div 
+        className="rec-feedback-bar"
+        style={{
+          marginTop: '0.85rem',
+          paddingTop: '0.65rem',
+          borderTop: '1px solid var(--color-border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.5rem'
+        }}
+      >
+        <span style={{ fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>
+          {currentRating ? `Rated: ${currentRating.replace('_', ' ')}` : 'Helpful strategy?'}
+        </span>
+        <div style={{ display: 'flex', gap: '0.35rem' }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${currentRating === 'helpful' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ padding: '0.2rem 0.45rem', fontSize: '0.74rem', minHeight: 'auto' }}
+            onClick={() => submitRecommendationFeedback({
+              assessmentId: latestResult?.id,
+              recommendationKey: key,
+              recommendationTitle: title,
+              category,
+              rating: 'helpful'
+            })}
+            title="Mark as Helpful"
+          >
+            <ThumbsUp size={12} />
+            <span>Helpful</span>
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${currentRating === 'somewhat_helpful' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ padding: '0.2rem 0.45rem', fontSize: '0.74rem', minHeight: 'auto' }}
+            onClick={() => submitRecommendationFeedback({
+              assessmentId: latestResult?.id,
+              recommendationKey: key,
+              recommendationTitle: title,
+              category,
+              rating: 'somewhat_helpful'
+            })}
+            title="Mark as Somewhat Helpful"
+          >
+            <Meh size={12} />
+            <span>Somewhat</span>
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${currentRating === 'not_helpful' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ padding: '0.2rem 0.45rem', fontSize: '0.74rem', minHeight: 'auto' }}
+            onClick={() => submitRecommendationFeedback({
+              assessmentId: latestResult?.id,
+              recommendationKey: key,
+              recommendationTitle: title,
+              category,
+              rating: 'not_helpful'
+            })}
+            title="Mark as Not Helpful"
+          >
+            <ThumbsDown size={12} />
+            <span>Not Helpful</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="result-container" style={{ maxWidth: '840px', margin: '0 auto 4rem' }}>
       {/* ── 1. TOP SECTION — ALWAYS VISIBLE ──────────────────────────────── */}
@@ -299,6 +408,71 @@ export default function ResultPage({ onNavigate }) {
           </span>
         </div>
       </div>
+
+      {/* ── LONGITUDINAL COMPARISON BANNER (if prior assessment exists) ── */}
+      {longitudinalDiff && (
+        <section 
+          className="longitudinal-quick-banner"
+          style={{
+            background: 'linear-gradient(135deg, rgba(117,96,217,0.08), rgba(99,102,241,0.04))',
+            border: '1px solid rgba(117,96,217,0.22)',
+            borderRadius: 'var(--radius-md)',
+            padding: '1.1rem 1.35rem',
+            marginBottom: '2rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              background: longitudinalDiff.delta < 0 ? '#DCFCE7' : (longitudinalDiff.delta > 0 ? '#FEF3C7' : '#F1F5F9'),
+              color: longitudinalDiff.delta < 0 ? '#166534' : (longitudinalDiff.delta > 0 ? '#92400E' : '#475569'),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              {longitudinalDiff.delta < 0 ? <ArrowDownRight size={22} /> : (longitudinalDiff.delta > 0 ? <ArrowUpRight size={22} /> : <Minus size={22} />)}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: '0.96rem', color: 'var(--color-text)' }}>
+                  Longitudinal Comparison vs Previous Assessment ({longitudinalDiff.prevDate})
+                </strong>
+                <span style={{
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: 'var(--radius-full)',
+                  background: longitudinalDiff.delta < 0 ? '#DCFCE7' : (longitudinalDiff.delta > 0 ? '#FEF3C7' : '#F1F5F9'),
+                  color: longitudinalDiff.delta < 0 ? '#166534' : (longitudinalDiff.delta > 0 ? '#92400E' : '#475569')
+                }}>
+                  {longitudinalDiff.delta > 0 ? `+${longitudinalDiff.delta} symptoms` : (longitudinalDiff.delta < 0 ? `${longitudinalDiff.delta} symptoms` : 'Stable Score')}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.84rem', color: 'var(--color-text-muted)', margin: '0.2rem 0 0' }}>
+                Previous screening: {longitudinalDiff.prevScore}/{maxScore} ({longitudinalDiff.prevCategory}). Distress shift: {longitudinalDiff.deltaDistress > 0 ? `+${longitudinalDiff.deltaDistress}` : longitudinalDiff.deltaDistress} pts.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => onNavigate('progress')}
+            id="btn-goto-progress-from-result"
+          >
+            <span>View Full Trends & Shifts</span>
+            <ArrowRight size={14} />
+          </button>
+        </section>
+      )}
 
       {/* ── PRIORITY GPS HEALTHCARE MAP (Only shown if risk score is strictly above 30 for 34) ── */}
       {isHighRisk && (
@@ -1123,6 +1297,8 @@ export default function ResultPage({ onNavigate }) {
                       )}
                     </div>
                   )}
+
+                  {renderRecFeedbackBar('sleep', isBipolar ? 'Circadian Stabilization & Dark Therapy' : 'Circadian Sleep Schedule', 'Circadian Rhythm')}
                 </div>
 
                 {/* ── CARD 2: COGNITIVE DECELERATION OR SENSORY GROUNDING (Dynamic) ── */}
@@ -1200,6 +1376,8 @@ export default function ResultPage({ onNavigate }) {
                       )}
                     </div>
                   )}
+
+                  {renderRecFeedbackBar('grounding', isBipolar ? 'Cognitive Deceleration & Pacing' : '5-4-3-2-1 Sensory Grounding', 'Grounding')}
                 </div>
 
                 {/* ── CARD 3: BEHAVIORAL SAFEGUARDS OR REALITY TESTING (Dynamic) ── */}
@@ -1275,6 +1453,8 @@ export default function ResultPage({ onNavigate }) {
                       )}
                     </div>
                   )}
+
+                  {renderRecFeedbackBar('behavioral', isBipolar ? 'The 48-Hour Decision Rule' : 'Cognitive Flexibility & Peer Check-In', 'Behavioral')}
                 </div>
 
                 {/* ── CARD 4: AUTONOMIC NERVOUS SYSTEM BREATHING ── */}
@@ -1326,6 +1506,8 @@ export default function ResultPage({ onNavigate }) {
                       Repeat 4 slow cycles morning and evening.
                     </div>
                   )}
+
+                  {renderRecFeedbackBar('breathing', 'Guided 4-7-8 Breathing Pacing', 'Vagal Regulation')}
                 </div>
 
                 {/* ── CARD 5: REFLECTIVE JOURNALING (Dynamic to Test) ── */}

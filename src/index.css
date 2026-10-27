@@ -3979,5 +3979,79 @@ html, body {
   color: var(--color-text-muted);
 }
 
+/* ==========================================================================
+   LONGITUDINAL PROGRESS & DIAGNOSIS HISTORY STYLES
+   ========================================================================== */
 
+.longitudinal-quick-banner {
+  animation: fadeInUp 0.3s ease-out;
+  transition: all 0.2s ease;
+}
 
+.longitudinal-quick-banner:hover {
+  border-color: rgba(117, 96, 217, 0.4);
+  box-shadow: 0 4px 16px rgba(117, 96, 217, 0.08);
+}
+
+.rec-feedback-bar {
+  transition: background 0.2s ease;
+}
+
+.rec-feedback-bar button {
+  transition: all 0.15s ease;
+}
+
+.rec-feedback-bar button:hover {
+  transform: translateY(-1px);
+}
+
+.timeline-milestone {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.timeline-milestone:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.symptom-tag-resolved {
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  color: #166534;
+}
+
+.symptom-tag-persistent {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+}
+
+.symptom-tag-new {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #991B1B;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .longitudinal-quick-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .rec-feedback-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

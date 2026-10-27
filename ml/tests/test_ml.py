@@ -185,3 +185,28 @@ def test_empty_answers_handled_safely():
     data = response.json()
     assert data["status"] == "success"
     assert data["predicted_class"] == 0
+
+
+def test_predict_with_longitudinal_history():
+    """Verify ML prediction processes optional historical context correctly."""
+    answers = [{"id": i, "answer": "True" if i <= 5 else "False"} for i in range(1, 17)]
+    history = [
+        {"assessment_type": "schizophrenia", "score": 8, "date": "10 Oct 2026"}
+    ]
+    payload = {
+        "assessment_type": "schizophrenia",
+        "age_group": "19-25",
+        "profession": "student",
+        "answers": answers,
+        "history": history
+    }
+    response = client.post("/api/ml/predict", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["longitudinal_context"] is not None
+    assert data["longitudinal_context"]["has_history"] is True
+    assert data["longitudinal_context"]["previous_score"] == 8
+    assert data["longitudinal_context"]["score_delta"] == -3
+    assert data["longitudinal_context"]["trajectory_direction"] == "decreased"
+

@@ -109,6 +109,7 @@ class ScreeningPredictionRequest(BaseModel):
     age_group: Optional[str] = Field(default="19-25", description="Age category ID, e.g. '19-25'")
     profession: Optional[str] = Field(default=None, description="Profession ID or label")
     answers: List[Any] = Field(..., description="Array of completed question answer objects")
+    history: Optional[List[Dict[str, Any]]] = Field(default=None, description="Optional prior assessment history for longitudinal context")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -119,6 +120,9 @@ class ScreeningPredictionRequest(BaseModel):
                 "answers": [
                     {"id": 1, "answer": "True", "followUp1": 3, "followUp2": 2},
                     {"id": 2, "answer": "False"}
+                ],
+                "history": [
+                    {"assessment_type": "schizophrenia", "score": 6, "date": "01 Oct 2026"}
                 ]
             }
         }
@@ -131,6 +135,18 @@ class ContributingFeature(BaseModel):
     item_index: int
     endorsed: bool
     relative_importance: float
+
+
+class LongitudinalContext(BaseModel):
+    has_history: bool = True
+    previous_sessions_count: int = 0
+    previous_score: Optional[int] = None
+    score_delta: Optional[int] = None
+    trajectory_direction: Optional[str] = None
+    persistent_symptoms_count: Optional[int] = None
+    context_summary: str
+    evaluation_status: str
+    clinical_disclaimer: str
 
 
 class PredictionResponse(BaseModel):
@@ -147,6 +163,7 @@ class PredictionResponse(BaseModel):
     risk_level: Optional[str] = None
     total_endorsed_features: Optional[int] = None
     top_contributing_features: Optional[List[ContributingFeature]] = None
+    longitudinal_context: Optional[LongitudinalContext] = None
     clinical_disclaimer: str
     citation: Optional[str] = None
 
@@ -320,6 +337,50 @@ def predict_screening(request: ScreeningPredictionRequest):
                 relative_importance=round(imp * 100, 2)
             ))
 
+    # 7. Longitudinal Context Extraction & Pattern Comparison
+    long_ctx = None
+    if request.history and isinstance(request.history, list) and len(request.history) > 0:
+        matching_history = [
+            h for h in request.history
+            if isinstance(h, dict) and (
+                (h.get("assessment_type") or "").lower().strip() in [ass_type, "pq-16" if ass_type == "schizophrenia" else "mdq"]
+            )
+        ]
+        if matching_history:
+            prev_session = matching_history[0]
+            prev_score = prev_session.get("score") if prev_session.get("score") is not None else (prev_session.get("symptom_count") or 0)
+            delta_score = endorsed_count - int(prev_score)
+            direction = "decreased" if delta_score < 0 else ("increased" if delta_score > 0 else "stable")
+
+            prev_answers = prev_session.get("answers") or []
+            persistent_count = 0
+            if prev_answers and isinstance(prev_answers, list):
+                prev_endorsed_ids = set()
+                for pa in prev_answers:
+                    if isinstance(pa, dict) and (pa.get("answer") == "True" or pa.get("isTrue") is True):
+                        prev_endorsed_ids.add(pa.get("id"))
+                for cur_id in [idx + 1 for idx, (k, v) in enumerate(feature_dict.items()) if v == 1.0]:
+                    if cur_id in prev_endorsed_ids:
+                        persistent_count += 1
+
+            context_summary = (
+                f"Symptom endorsement changed from {prev_score} to {endorsed_count} ({direction}) "
+                f"across {len(matching_history)} tracked session(s). "
+                f"Context analysis monitors screening trends without replacing the validated baseline classification."
+            )
+
+            long_ctx = LongitudinalContext(
+                has_history=True,
+                previous_sessions_count=len(matching_history),
+                previous_score=int(prev_score),
+                score_delta=int(delta_score),
+                trajectory_direction=direction,
+                persistent_symptoms_count=persistent_count if prev_answers else None,
+                context_summary=context_summary,
+                evaluation_status="Baseline model verified on held-out dataset (PQ-16: 96.8% accuracy, MDQ: 86.6% accuracy). Longitudinal metrics provide trajectory context.",
+                clinical_disclaimer="Historical comparison displays longitudinal self-reporting patterns. It does not infer clinical improvement or remission."
+            )
+
     return PredictionResponse(
         status="success",
         is_supported=True,
@@ -333,6 +394,7 @@ def predict_screening(request: ScreeningPredictionRequest):
         risk_level=risk_level,
         total_endorsed_features=endorsed_count,
         top_contributing_features=top_features,
+        longitudinal_context=long_ctx,
         clinical_disclaimer=(
             "This prediction is an experimental exploratory analysis generated by an automated Random Forest model. "
             "It is NOT a clinical diagnosis, psychological assessment, or therapeutic recommendation. "

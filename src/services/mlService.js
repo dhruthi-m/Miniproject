@@ -14,7 +14,7 @@ const ML_API_BASE = 'http://localhost:8000';
  * @param {Array} params.answers - Array of question answer objects
  * @returns {Promise<Object>} ML prediction result object
  */
-export async function fetchMlPrediction({ assessmentType, ageGroup, profession, answers }) {
+export async function fetchMlPrediction({ assessmentType, ageGroup, profession, answers, history }) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
@@ -29,7 +29,8 @@ export async function fetchMlPrediction({ assessmentType, ageGroup, profession, 
         assessment_type: assessmentType,
         age_group: ageGroup,
         profession,
-        answers: answers || []
+        answers: answers || [],
+        history: history || []
       })
     });
 
