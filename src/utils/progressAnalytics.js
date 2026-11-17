@@ -142,7 +142,7 @@ export function generatePersonalizedRecommendations({
     : (hasSleepIssue ? 'Sensory De-escalation & Sleep Anchoring' : 'Consistent Circadian Sleep Schedule');
   let sleepBadge = sleepFeedback === 'helpful'
     ? '⭐ User Verified Helpful'
-    : (hasSleepIssue ? '⚡ Matched to Your Sleep Responses' : '🌙 Circadian Hygiene');
+    : (hasSleepIssue ? ' Matched to Your Sleep Responses' : ' Circadian Hygiene');
   let sleepText = !isSchiz
     ? (hasSleepIssue 
         ? 'You reported periods of little sleep with elevated energy. In bipolar spectrum conditions, sleep reduction is a primary trigger for manic escalation. Enforcing circadian dark cues stabilizes brain rhythms.'
@@ -155,7 +155,7 @@ export function generatePersonalizedRecommendations({
     sleepText += ' (Based on your positive feedback, continue prioritizing dark cues and fixed morning wake anchors.)';
   } else if (sleepFeedback === 'not_helpful') {
     sleepTitle = 'Alternative: Stimulus Control Sleep Routine';
-    sleepBadge = '🔄 Adapted Based on Feedback';
+    sleepBadge = ' Adapted Based on Feedback';
     sleepText = 'Because you previously found dark therapy alone less helpful, we emphasize stimulus control: leave bed if awake after 20 minutes to break sleep-frustration associations.';
   }
 
@@ -184,7 +184,7 @@ export function generatePersonalizedRecommendations({
     : (hasRacingThoughts ? 'Cognitive Deceleration & Thought Pacing' : 'Mindful Mental Pacing');
   let groundBadge = groundingFeedback === 'helpful'
     ? '⭐ User Verified Helpful'
-    : (hasPerceptualSensory ? '🌿 Matched to Sensory Responses' : '🧘 Grounding Habit');
+    : (hasPerceptualSensory ? ' Matched to Sensory Responses' : ' Grounding Habit');
   let groundText = !isSchiz
     ? (hasPerceptualSensory
         ? 'You noted heightened sensory variations. Concrete grounding exercises anchor attention to physical reality.'
@@ -197,7 +197,7 @@ export function generatePersonalizedRecommendations({
     groundText += ' (You marked this practice helpful in a prior session—maintain regular repetition during stressful phases.)';
   } else if (groundingFeedback === 'not_helpful') {
     groundTitle = 'Alternative: Somatosensory Box Breathing Grounding';
-    groundBadge = '🔄 Adapted Based on Feedback';
+    groundBadge = ' Adapted Based on Feedback';
     groundText = 'Adapted for active physical engagement: use tactile pressure on the palms and structured box breathing instead of passive observation.';
   }
 
@@ -224,7 +224,7 @@ export function generatePersonalizedRecommendations({
     : (hasHighEnergyImpulse ? 'The 48-Hour Decision Rule & Financial Guardrails' : 'Structured Daily Scheduling');
   let behavBadge = behavioralFeedback === 'helpful'
     ? '⭐ User Verified Helpful'
-    : (hasHighEnergyImpulse ? '⚡ Matched to Impulsivity' : '💡 Decision Guardrails');
+    : (hasHighEnergyImpulse ? ' Matched to Impulsivity' : ' Decision Guardrails');
   let behavText = !isSchiz
     ? (hasIdeationalBeliefs
         ? 'When thoughts or coincidences feel imbued with intense hidden meaning, checking in with trusted peers maintains perspective.'
@@ -237,7 +237,7 @@ export function generatePersonalizedRecommendations({
     behavText += ' (You found this behavioral rule effective in earlier reviews—keep your designated accountability partner active.)';
   } else if (behavioralFeedback === 'not_helpful') {
     behavTitle = 'Alternative: Micro-Pacing & Sensory Pause Routine';
-    behavBadge = '🔄 Adapted Based on Feedback';
+    behavBadge = ' Adapted Based on Feedback';
     behavText = 'Because multi-day delays felt restrictive in prior practice, we suggest micro-pacing: introduce a 15-minute physical walk before high-consequence decisions rather than rigid multi-day holds.';
   }
 
@@ -262,14 +262,14 @@ export function generatePersonalizedRecommendations({
 
   // 4. Autonomic Breathing / Vagal Regulation
   let breathTitle = 'Guided 4-7-8 Breathing Pacing';
-  let breathBadge = breathingFeedback === 'helpful' ? '⭐ User Verified Helpful' : '💨 Vagal Regulation';
+  let breathBadge = breathingFeedback === 'helpful' ? '⭐ User Verified Helpful' : ' Vagal Regulation';
   let breathText = breathingFeedback === 'helpful'
     ? 'A verified helpful technique for you: Inhale quietly for 4 seconds, hold gently for 7, exhale smoothly for 8 seconds to activate your parasympathetic vagal brake.'
     : 'A calming pacing technique to reduce autonomic sympathetic overdrive, lower physical heart rate variability stress, and center the nervous system.';
 
   if (breathingFeedback === 'not_helpful') {
     breathTitle = 'Alternative: Physiological Sigh Pacing';
-    breathBadge = '🔄 Adapted Based on Feedback';
+    breathBadge = ' Adapted Based on Feedback';
     breathText = 'Because extended breath holding felt uncomfortable, try the double-inhalation physiological sigh: two quick nasal inhales followed by one long, slow mouth exhalation.';
   }
 

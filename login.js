@@ -233,7 +233,7 @@ function setupFormValidation() {
           return;
         }
 
-        // ✅ Registration successful — switch to login tab
+        //  Registration successful — switch to login tab
         signupForm.reset();
         if (window.mindwaveAuth && window.mindwaveAuth.switchToLogin) {
           window.mindwaveAuth.switchToLogin();
@@ -292,7 +292,7 @@ function setupFormValidation() {
           return;
         }
 
-        // ✅ Login successful — save JWT token and user info
+        //  Login successful — save JWT token and user info
         localStorage.setItem('mindwave_token', data.token);
         if (data.user) {
           localStorage.setItem('mindwave_user', JSON.stringify(data.user));

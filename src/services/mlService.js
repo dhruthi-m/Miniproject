@@ -1,4 +1,4 @@
-/**
+﻿/**
  * MindWave Random Forest Machine Learning Client Service
  * Communicates with the FastAPI prediction microservice on port 8000.
  */
@@ -52,7 +52,7 @@ export async function fetchMlPrediction({ assessmentType, ageGroup, profession, 
     return {
       status: 'offline',
       is_supported: false,
-      unsupported_reason: 'Screening assessment is currently unavailable (service is not reachable).',
+      unsupported_reason: 'The supplemental analysis service is currently offline or unreachable.',
       assessment_type: assessmentType,
       algorithm: 'RandomForestClassifier'
     };
@@ -77,3 +77,4 @@ export async function checkMlHealth() {
     return { status: 'offline' };
   }
 }
+

@@ -188,7 +188,7 @@ export default function QuestionnairePage({ onNavigate }) {
           fontWeight: 600,
           border: '1px solid #CBD5E1'
         }}>
-          <span>🎯 Dynamic Profile:</span>
+          <span> Dynamic Profile:</span>
           <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>
             {getAgeLabel(ageGroup)} • {getProfessionLabel(ageGroup, profession)}
           </span>

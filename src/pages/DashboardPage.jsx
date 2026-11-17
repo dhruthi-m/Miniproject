@@ -97,7 +97,7 @@ export default function DashboardPage({ onNavigate }) {
           </div>
           <div className="advisory-content" style={{ flex: 1 }}>
             <div className="advisory-badge-row">
-              <span className="advisory-risk-tag">⚠️ {latestResult.result_category} Risk Advisory</span>
+              <span className="advisory-risk-tag">️ {latestResult.result_category} Risk Advisory</span>
               <span className="advisory-sub-tag">GPS Healthcare Radar Available</span>
             </div>
             <h3 className="advisory-title" style={{ fontSize: '1.05rem', marginBottom: '0.2rem' }}>
@@ -277,7 +277,7 @@ export default function DashboardPage({ onNavigate }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                         <div>
                           <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                            {idx === 0 ? '✨ Most Recent' : `Session ${history.length - idx}`}
+                            {idx === 0 ? ' Most Recent' : `Session ${history.length - idx}`}
                           </span>
                           <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--color-text)', marginTop: '0.15rem' }}>
                             {testTitle}

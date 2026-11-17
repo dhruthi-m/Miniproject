@@ -93,7 +93,7 @@ export function RiskPage({ symptomsCount }) {
         shortExplanation: 'Multiple significant perceptual or belief alterations reported.',
         concern: 'High clinical concern',
         iconColor: 'text-red-400',
-        badge: '🔴 High Risk'
+        badge: 'High Risk'
       };
     }
     if (symptomsCount >= 6) {
@@ -110,7 +110,7 @@ export function RiskPage({ symptomsCount }) {
         shortExplanation: 'Moderate frequency of reported perceptual variations.',
         concern: 'Moderate clinical concern',
         iconColor: 'text-orange-400',
-        badge: '🟠 Moderate Risk'
+        badge: 'Moderate Risk'
       };
     }
     if (symptomsCount >= 3) {
@@ -127,7 +127,7 @@ export function RiskPage({ symptomsCount }) {
         shortExplanation: 'Trace variations that could be related to stress or fatigue.',
         concern: 'Low clinical concern',
         iconColor: 'text-cyan-400',
-        badge: '🟡 Mild Risk'
+        badge: 'Mild Risk'
       };
     }
     return {
@@ -143,7 +143,7 @@ export function RiskPage({ symptomsCount }) {
       shortExplanation: 'Few or no perceptual variations reported. Typical baseline.',
       concern: 'No clinical concern',
       iconColor: 'text-green-400',
-      badge: '🟢 Low Risk'
+      badge: 'Low Risk'
     };
   }, [symptomsCount]);
 

@@ -976,28 +976,28 @@ export default function ProgressReportsPage({ onNavigate }) {
                     title: 'Circadian Stabilization & Dark Therapy Protocol',
                     category: 'Circadian Sleep Hygiene',
                     description: 'Enforcing fixed morning wake anchors and dimming lights 2 hours prior to sleep to buffer neurological rhythms.',
-                    icon: '🌙'
+                    icon: ''
                   },
                   {
                     id: 'grounding',
                     title: '5-4-3-2-1 Sensory Reality Grounding',
                     category: 'Cognitive Grounding',
                     description: 'Anchoring conscious attention to verifiable room sensations (sight, touch, sound, breath) during sensory vividness.',
-                    icon: '🌿'
+                    icon: ''
                   },
                   {
                     id: 'behavioral',
                     title: 'The 48-Hour Decision Rule & Peer Verification',
                     category: 'Behavioral Guardrails',
                     description: 'Structured delay before major purchases or commitments during heightened energy periods, with trusted peer feedback.',
-                    icon: '💡'
+                    icon: ''
                   },
                   {
                     id: 'breathing',
                     title: 'Guided 4-7-8 Autonomic Vagal Pacing',
                     category: 'Nervous System Regulation',
                     description: 'Slow rhythmic inhalation, breath retention, and extended exhale to center autonomic nervous system tone.',
-                    icon: '💨'
+                    icon: ''
                   }
                 ].map(rec => {
                   const currentRating = recommendationFeedback[rec.id] || null;

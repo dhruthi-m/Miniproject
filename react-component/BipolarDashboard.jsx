@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import OverviewHub from './bipolar-pages/OverviewHub';
 import { 
@@ -74,7 +74,7 @@ export default function BipolarDashboard({
             <Route path="/wellness" element={<WellnessPage />} />
             <Route path="/seek-help" element={<SeekHelpPage />} />
             <Route path="/resources" element={<ResourcesPage />} />
-            <Route path="/report" element={<DownloadPage />} />
+            <Route path="/report" element={<DownloadPage answers={answers} symptomsCount={symptomsCount} severityScore={severityScore} patientName={patientName} dateString={currentTime} />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/retake" element={<RetakePage onRetake={onRetake} />} />
           </Routes>
@@ -84,3 +84,4 @@ export default function BipolarDashboard({
     </HashRouter>
   );
 }
+

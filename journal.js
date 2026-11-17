@@ -76,16 +76,16 @@ function setupThemeToggle() {
 
 /* ─── Data definitions ─────────────────────────────────────────── */
 const EMOTIONS = [
-  { emoji: '😊', label: 'Happy'   },
-  { emoji: '😌', label: 'Calm'    },
-  { emoji: '😢', label: 'Sad'     },
-  { emoji: '😠', label: 'Angry'   },
-  { emoji: '😟', label: 'Anxious' },
-  { emoji: '😣', label: 'Stressed'},
-  { emoji: '🤩', label: 'Excited' },
-  { emoji: '🥺', label: 'Lonely'  },
-  { emoji: '😕', label: 'Confused'},
-  { emoji: '😐', label: 'Neutral' },
+  { emoji: '', label: 'Happy'   },
+  { emoji: '', label: 'Calm'    },
+  { emoji: '', label: 'Sad'     },
+  { emoji: '', label: 'Angry'   },
+  { emoji: '', label: 'Anxious' },
+  { emoji: '', label: 'Stressed'},
+  { emoji: '', label: 'Excited' },
+  { emoji: '', label: 'Lonely'  },
+  { emoji: '', label: 'Confused'},
+  { emoji: '', label: 'Neutral' },
 ];
 
 const TRIGGERS  = ['Studies','Work','Relationships','Family','Social situations','Sleep','Health & wellbeing','Personal thoughts','Major event','Nothing specific','Other'];
@@ -268,7 +268,7 @@ function setupTextJournal() {
     document.getElementById('journal-entry-title').value = '';
     ta.value = ''; if (cc) cc.textContent = '0';
     renderTextEntries();
-    showToast('Entry saved ✓');
+    showToast('Entry saved ');
   });
 
   document.getElementById('clear-text-entry')?.addEventListener('click', () => {
@@ -345,7 +345,7 @@ function saveVoiceEntry() {
     renderVoiceEntries();
     document.getElementById('voice-playback').style.display = 'none';
     secs = 0; document.getElementById('voice-timer').textContent = '00:00';
-    showToast('Recording saved ✓');
+    showToast('Recording saved ');
   };
   reader.readAsDataURL(blob);
 }
@@ -536,7 +536,7 @@ function saveEmotionEntry() {
   renderCalendar();
   renderInsights();
   setupFilterDropdown();
-  showToast('✓ Emotion entry saved successfully');
+  showToast(' Emotion entry saved successfully');
 }
 
 /* ====================================================================
@@ -807,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('save-reflection-btn')?.addEventListener('click', () => {
     const text = document.getElementById('weekly-reflection-text')?.value.trim() || '';
     saveStr(REFLECTION_KEY, text);
-    showToast('Reflection saved ✓');
+    showToast('Reflection saved ');
   });
 
   document.querySelectorAll('.refl-prompt-card').forEach(card => {

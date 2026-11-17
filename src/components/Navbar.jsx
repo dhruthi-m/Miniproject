@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, LogOut, Menu, X, User } from 'lucide-react';
+import { Activity, LogOut, Menu, X, User, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ activePage, onNavigate }) {
@@ -15,6 +15,10 @@ export default function Navbar({ activePage, onNavigate }) {
   const handleLogout = () => {
     logout();
     onNavigate('landing');
+  };
+
+  const openChatbot = () => {
+    window.dispatchEvent(new CustomEvent('open-mindwave-chat'));
   };
 
   return (
@@ -86,8 +90,18 @@ export default function Navbar({ activePage, onNavigate }) {
           </a>
         </nav>
 
-        {/* Right Action: Auth or Profile */}
+        {/* Right Action: Auth or Profile + Companion */}
         <div className="navbar-actions">
+          <button
+            type="button"
+            className="nav-chat-btn"
+            onClick={openChatbot}
+            title="Open MindWave Chat Companion"
+          >
+            <MessageSquare size={16} />
+            <span>Companion</span>
+          </button>
+
           {isAuthenticated ? (
             <>
               <button 
@@ -150,6 +164,15 @@ export default function Navbar({ activePage, onNavigate }) {
           )}
           <a href="#about" className="nav-link" onClick={(e) => handleNavClick('about', e)}>About</a>
           <a href="#contact" className="nav-link" onClick={(e) => handleNavClick('contact', e)}>Contact</a>
+          <button 
+            type="button" 
+            className="nav-chat-btn" 
+            style={{ width: 'fit-content' }}
+            onClick={() => { setMobileMenuOpen(false); openChatbot(); }}
+          >
+            <MessageSquare size={16} />
+            <span>Open AI Companion</span>
+          </button>
           {!isAuthenticated && (
             <a href="#auth" className="nav-link" style={{ fontWeight: 600, color: 'var(--color-primary)' }} onClick={(e) => handleNavClick('auth', e)}>Sign In</a>
           )}

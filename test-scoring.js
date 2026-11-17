@@ -17,7 +17,7 @@ export const sanitizeResultRecord = (rec) => {
   if (!rec) return null;
   const isBipolar = rec.assessment_type === 'bipolar';
   const expectedMax = isBipolar ? 15 : 16;
-  
+
   let symptomCount = typeof rec.symptom_count === 'number' ? rec.symptom_count : null;
   let distressScore = typeof rec.distress_score === 'number' ? rec.distress_score : null;
 
@@ -52,10 +52,10 @@ export const sanitizeResultRecord = (rec) => {
 
 function assert(condition, message) {
   if (!condition) {
-    console.error(`❌ FAIL: ${message}`);
+    console.error(` FAIL: ${message}`);
     process.exit(1);
   }
-  console.log(`✅ PASS: ${message}`);
+  console.log(` PASS: ${message}`);
 }
 
 console.log('\n--- 1. QUESTION COUNT & STRUCTURE VERIFICATION ---');
@@ -146,14 +146,14 @@ console.log('\n--- 4. BUG REPRODUCTION & RESOLUTION TEST (THE 35/34 ELEVATED CAS
   assert(symptomCount === 7, 'Symptom count is 7');
   assert(distressScore === 28, 'Distress score is 28');
   assert(symptomCount + distressScore === 35, 'Sum of symptom count (7) + distress (28) equals 35 (the old invalid score)');
-  
+
   // Under old flawed code:
   // totalScore = 7 + 28 = 35, maxScore = 34 => 35 / 34!
   // Under the new fixed code:
   // Primary screening score = symptomCount (7), maxScore = 16 => 7 / 16!
   // Distress score = 28 is kept separate!
   assert(symptomCount <= maxScore, 'Valid score (7) is strictly <= maxScore (16)');
-  
+
   // Test sanitization of an old stored 35/34 result in localStorage:
   const oldFlawedStoredResult = {
     assessment_type: 'schizophrenia',
@@ -279,5 +279,5 @@ console.log('\n--- 7. BACKEND VALIDATION RULES VERIFICATION ---');
 }
 
 console.log('\n==============================================');
-console.log('🎉 ALL 24 SCORING & VALIDATION TESTS PASSED!');
+console.log(' ALL 24 SCORING & VALIDATION TESTS PASSED!');
 console.log('==============================================\n');

@@ -2,82 +2,18 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const {
+  analyzeSentimentVader,
+  extractEmotionalThemes,
+  detectCognitiveDistortions,
+  generateCognitiveReframe,
+  analyzeJournalEntry,
+  predictMoodTrajectory
+} = require('../services/sentimentMirrorService');
 
 router.use(authenticateToken);
 
-// Predefined Lexicon for Rule-Based Keyword Tone Estimation
-const POSITIVE_WORDS = [
-  'happy', 'joy', 'grateful', 'gratitude', 'peace', 'peaceful', 'calm', 'hope', 'hopeful',
-  'proud', 'accomplished', 'relaxed', 'relaxing', 'progress', 'excited', 'loved', 'love',
-  'strong', 'content', 'optimistic', 'better', 'healing', 'smile', 'laugh', 'energy',
-  'thriving', 'blessed', 'serene', 'comfort', 'uplifted', 'wonderful', 'inspired', 'confident'
-];
-
-const NEGATIVE_WORDS = [
-  'sad', 'anxious', 'anxiety', 'stress', 'stressed', 'stressful', 'overwhelmed', 'depressed',
-  'depression', 'fear', 'hopeless', 'angry', 'frustrated', 'exhausted', 'tired', 'crying',
-  'lonely', 'alone', 'hurt', 'pain', 'guilt', 'worthless', 'panic', 'dread', 'terrible',
-  'miserable', 'grief', 'helpless', 'down', 'fatigue', 'worried', 'nervous', 'burnout'
-];
-
-function analyzeJournalSentiment(text) {
-  if (!text || typeof text !== 'string') {
-    return {
-      label: 'Neutral / Uncertain',
-      details: { positiveCount: 0, negativeCount: 0, positiveMatches: [], negativeMatches: [] }
-    };
-  }
-
-  const cleanWords = text
-    .toLowerCase()
-    .replace(/[^a-zA-Z\s]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean);
-
-  const matchedPositive = [];
-  const matchedNegative = [];
-
-  cleanWords.forEach(word => {
-    if (POSITIVE_WORDS.includes(word)) {
-      matchedPositive.push(word);
-    }
-    if (NEGATIVE_WORDS.includes(word)) {
-      matchedNegative.push(word);
-    }
-  });
-
-  const posCount = matchedPositive.length;
-  const negCount = matchedNegative.length;
-
-  let label = 'Neutral / Uncertain';
-
-  if (posCount > 0 && negCount === 0) {
-    label = 'Positive Tone';
-  } else if (negCount > 0 && posCount === 0) {
-    label = 'Negative Tone';
-  } else if (posCount > 0 && negCount > 0) {
-    if (posCount >= 2 * negCount) {
-      label = 'Predominantly Positive Tone';
-    } else if (negCount >= 2 * posCount) {
-      label = 'Predominantly Negative Tone';
-    } else {
-      label = 'Mixed Tone';
-    }
-  }
-
-  return {
-    label,
-    details: {
-      positiveCount: posCount,
-      negativeCount: negCount,
-      positiveMatches: Array.from(new Set(matchedPositive)),
-      negativeMatches: Array.from(new Set(matchedNegative)),
-      method: 'Predefined keyword frequency matching. This is a basic pattern estimate, not an indicator of clinical mental health.'
-    }
-  };
-}
-
-// GET /api/journals
+// GET /api/journals - Fetch all user journal records
 router.get('/', (req, res) => {
   try {
     const userId = req.user.id;
@@ -95,38 +31,168 @@ router.get('/', (req, res) => {
   }
 });
 
-// POST /api/journals
-router.post('/', (req, res) => {
+// GET /api/journals/trends - Historical trends, cross-screening correlation, and trajectory prediction
+router.get('/trends', (req, res) => {
   try {
     const userId = req.user.id;
-    const { title, entry_text } = req.body;
+
+    // 1. Fetch user journal records
+    const journals = db.prepare(`
+      SELECT id, title, entry_text, sentiment_label, sentiment_details, created_at, updated_at
+      FROM journal_records
+      WHERE user_id = ?
+      ORDER BY created_at ASC
+    `).all(userId);
+
+    const parsedJournals = journals.map(j => {
+      let details = null;
+      try {
+        details = j.sentiment_details ? JSON.parse(j.sentiment_details) : null;
+      } catch {}
+      return {
+        id: j.id,
+        title: j.title,
+        date: j.created_at,
+        sentiment_label: j.sentiment_label,
+        compound_score: details?.sentiment?.compound ?? 0,
+        emotions: details?.emotions || [],
+        distortions: details?.distortions || [],
+        reframe: details?.reframe || null
+      };
+    });
+
+    // 2. Fetch user mood records
+    const moods = db.prepare(`
+      SELECT id, mood, mood_score, note, sentiment_label, sentiment_details, created_at
+      FROM mood_records
+      WHERE user_id = ?
+      ORDER BY created_at ASC
+    `).all(userId);
+
+    // 3. Fetch user psychiatric assessments (PQ-16 & MDQ)
+    const assessments = db.prepare(`
+      SELECT id, assessment_type, score, max_score, distress_score, result_category, criteria_met, impairment_level, created_at
+      FROM assessments
+      WHERE user_id = ?
+      ORDER BY created_at ASC
+    `).all(userId);
+
+    const pq16Assessments = assessments
+      .filter(a => {
+        const t = (a.assessment_type || '').toLowerCase();
+        return t.includes('pq') || t.includes('schiz') || t.includes('psychosis');
+      })
+      .map(a => ({
+        id: a.id,
+        type: 'PQ-16 (Psychosis Risk Screen)',
+        score: a.score,
+        max_score: a.max_score || 16,
+        distress_score: a.distress_score || 0,
+        result_category: a.result_category || 'Assessed',
+        date: a.created_at
+      }));
+
+    const mdqAssessments = assessments
+      .filter(a => {
+        const t = (a.assessment_type || '').toLowerCase();
+        return t.includes('mdq') || t.includes('bipolar');
+      })
+      .map(a => ({
+        id: a.id,
+        type: 'MDQ (Bipolar Spectrum Screen)',
+        score: a.score,
+        max_score: 13,
+        criteria_met: Boolean(a.criteria_met),
+        impairment_level: a.impairment_level || 'Assessed',
+        date: a.created_at
+      }));
+
+    // 4. Compute Mood & Sentiment Trajectory Prediction
+    const predictionReport = predictMoodTrajectory(journals, moods);
+
+    return res.json({
+      summary: {
+        total_journals: journals.length,
+        total_mood_logs: moods.length,
+        total_pq16_screens: pq16Assessments.length,
+        total_mdq_screens: mdqAssessments.length
+      },
+      series: {
+        journals: parsedJournals,
+        moods: moods.map(m => ({
+          id: m.id,
+          mood: m.mood,
+          mood_score: m.mood_score,
+          note: m.note,
+          date: m.created_at
+        })),
+        pq16: pq16Assessments,
+        mdq: mdqAssessments
+      },
+      prediction: predictionReport,
+      correlation_disclaimer: 'Clinical Note: PQ-16, MDQ, and journal sentiment examine separate psychological axes. Scores are maintained independently; observed statistical correlations do not indicate medical causation or diagnostic certainty.'
+    });
+  } catch (error) {
+    console.error('Error computing journal trends:', error);
+    return res.status(500).json({ message: 'Failed to compute mood trends and screening correlations.' });
+  }
+});
+
+// POST /api/journals/analyze-preview - Dynamic live mirror preview before saving
+router.post('/analyze-preview', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: 'Journal text cannot be empty for analysis.' });
+    }
+
+    const analysis = await analyzeJournalEntry(text.trim());
+    return res.json({ analysis });
+  } catch (error) {
+    console.error('Error generating analysis preview:', error);
+    return res.status(500).json({ message: 'Failed to analyze text preview.' });
+  }
+});
+
+// POST /api/journals - Create new journal entry with NLP Sentiment Mirror & Cognitive Reframing
+router.post('/', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { title, entry_text, entry_type, audio_url, audio_duration } = req.body;
 
     if (!entry_text || !entry_text.trim()) {
       return res.status(400).json({ message: 'Journal text cannot be empty.' });
     }
 
     const trimmedText = entry_text.trim();
-    const cleanTitle = title ? title.trim() : 'Reflections for ' + new Date().toLocaleDateString();
+    const cleanType = entry_type === 'voice' ? 'voice' : 'text';
+    const cleanTitle = title && title.trim() 
+      ? title.trim() 
+      : (cleanType === 'voice' ? 'Voice Reflection' : 'Reflections for ' + new Date().toLocaleDateString());
 
-    const analysis = analyzeJournalSentiment(trimmedText);
+    // Run complete multimodal analysis
+    const analysis = await analyzeJournalEntry(trimmedText);
 
     const stmt = db.prepare(`
-      INSERT INTO journal_records (user_id, title, entry_text, sentiment_label, sentiment_details)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO journal_records (user_id, title, entry_text, sentiment_label, sentiment_details, entry_type, audio_url, audio_duration)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
       userId,
       cleanTitle,
       trimmedText,
-      analysis.label,
-      JSON.stringify(analysis.details)
+      analysis.sentiment.label,
+      JSON.stringify(analysis),
+      cleanType,
+      audio_url || null,
+      audio_duration || null
     );
 
     const saved = db.prepare('SELECT * FROM journal_records WHERE id = ?').get(Number(result.lastInsertRowid));
 
     return res.status(201).json({
-      message: 'Journal entry saved successfully.',
+      message: `${cleanType === 'voice' ? 'Voice' : 'Text'} journal entry saved and analyzed successfully.`,
       journal: {
         ...saved,
         sentiment_details: JSON.parse(saved.sentiment_details)
@@ -138,8 +204,8 @@ router.post('/', (req, res) => {
   }
 });
 
-// PUT /api/journals/:id
-router.put('/:id', (req, res) => {
+// PUT /api/journals/:id - Update entry and re-run sentiment & distortion analysis
+router.put('/:id', async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
@@ -157,18 +223,19 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ message: 'Journal text cannot be empty.' });
     }
 
-    const analysis = analyzeJournalSentiment(updatedText);
+    // Dynamic re-analysis on update
+    const analysis = await analyzeJournalEntry(updatedText);
 
     db.prepare(`
       UPDATE journal_records
       SET title = ?, entry_text = ?, sentiment_label = ?, sentiment_details = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
-    `).run(updatedTitle, updatedText, analysis.label, JSON.stringify(analysis.details), id, userId);
+    `).run(updatedTitle, updatedText, analysis.sentiment.label, JSON.stringify(analysis), id, userId);
 
     const updated = db.prepare('SELECT * FROM journal_records WHERE id = ?').get(id);
 
     return res.json({
-      message: 'Journal entry updated.',
+      message: 'Journal entry and Sentiment Mirror updated successfully.',
       journal: {
         ...updated,
         sentiment_details: JSON.parse(updated.sentiment_details)
@@ -180,7 +247,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// DELETE /api/journals/:id
+// DELETE /api/journals/:id - Delete entry and cascade remove its analysis
 router.delete('/:id', (req, res) => {
   try {
     const userId = req.user.id;
@@ -193,7 +260,7 @@ router.delete('/:id', (req, res) => {
 
     db.prepare('DELETE FROM journal_records WHERE id = ? AND user_id = ?').run(id, userId);
 
-    return res.json({ message: 'Journal entry deleted successfully.' });
+    return res.json({ message: 'Journal entry and associated analysis deleted successfully.' });
   } catch (error) {
     console.error('Error deleting journal:', error);
     return res.status(500).json({ message: 'Failed to delete journal entry.' });

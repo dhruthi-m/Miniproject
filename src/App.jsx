@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import ConversationalChatbot from './components/ConversationalChatbot';
 
 // Pages
 import LandingPage from './pages/LandingPage';
@@ -142,6 +143,9 @@ function MainAppContent() {
 
       {/* Global Footer */}
       <Footer />
+
+      {/* Conversational Mental Health Chatbot */} 
+      <ConversationalChatbot />
     </div>
   );
 }
@@ -157,3 +161,4 @@ export default function App() {
     </AuthProvider>
   );
 }
+

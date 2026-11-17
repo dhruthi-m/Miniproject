@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
-import { 
-  AGE_GROUPS, 
-  OCCUPATIONS_BY_AGE, 
-  getAdaptiveQuestions, 
+import {
+  AGE_GROUPS,
+  OCCUPATIONS_BY_AGE,
+  getAdaptiveQuestions,
   getContextualQuestionText,
-  calculateAssessmentScores 
+  calculateAssessmentScores
 } from './adaptiveScreeningEngine';
 import { useSpeech } from './useSpeech';
 import SchizophreniaDashboard from './SchizophreniaDashboard';
@@ -25,13 +26,13 @@ import BipolarDashboard from './BipolarDashboard';
  * @param {string} assessmentType 'bipolar' | 'schizophrenia'
  * @param {Function} onBackToMenu Callback to return to screening directory
  */
-export default function AdaptiveQuestionnaire({ 
-  assessmentType = 'bipolar', 
-  onBackToMenu 
+export default function AdaptiveQuestionnaire({
+  assessmentType = 'bipolar',
+  onBackToMenu
 }) {
   const { speak, stop, isSpeaking } = useSpeech();
   const storagePrefix = `mindwave_${assessmentType}`;
-  
+
   // Stages: 'setup' | 'quiz' | 'results'
   const [stage, setStage] = useState(() => {
     try {
@@ -42,10 +43,10 @@ export default function AdaptiveQuestionnaire({
           return 'results';
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return 'setup';
   });
-  
+
   const [selectedAge, setSelectedAge] = useState(
     () => localStorage.getItem(`${storagePrefix}_age`) || '18-25'
   );
@@ -76,7 +77,7 @@ export default function AdaptiveQuestionnaire({
         const parsed = JSON.parse(ansRaw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     return questions.map((q, idx) => ({
       id: idx + 1,
@@ -113,7 +114,7 @@ export default function AdaptiveQuestionnaire({
           totalDistress: rec.total_distress ?? (parseInt(localStorage.getItem(`${storagePrefix}_totalExtent`)) || 0)
         };
       }
-    } catch (e) {}
+    } catch (e) { }
     return {
       symptomCount: parseInt(localStorage.getItem(`${storagePrefix}_symptomCount`)) || 0,
       schizSymptoms: 0,
@@ -264,7 +265,7 @@ export default function AdaptiveQuestionnaire({
   const isPrimaryAnswered = currentAns.answer !== null;
   const isYesAnswered = currentAns.answer === 'Yes';
   const hasFollowUpProbe = !!currentQ.followUp;
-  
+
   const isFollowUpProbeDone = !hasFollowUpProbe || currentAns.follow_up_answer !== null;
   const isContextDone = currentAns.context_answer !== null;
   const isDistressDone = currentAns.distress_level !== null;
@@ -397,7 +398,7 @@ export default function AdaptiveQuestionnaire({
   if (stage === 'setup') {
     return (
       <div className="w-full max-w-4xl mx-auto rounded-[2.5rem] p-8 sm:p-12 md:p-16 border border-slate-800/90 bg-slate-900/95 backdrop-blur-2xl shadow-2xl flex flex-col gap-8 text-left transition-all animate-fadeIn">
-        
+
         {/* Top Header & Meta: Protocol, Demographic Tag, Step */}
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -418,7 +419,7 @@ export default function AdaptiveQuestionnaire({
 
           {/* Sleek Progress Bar (Cyan to Lavender Gradient) */}
           <div className="w-full h-1.5 sm:h-2 bg-slate-800/80 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-purple-400 transition-all duration-300 rounded-full w-full"
             ></div>
           </div>
@@ -436,7 +437,7 @@ export default function AdaptiveQuestionnaire({
 
         {/* VERTICALLY STACKED SPACIOUS DROPDOWN CARDS */}
         <div className="flex flex-col gap-6 sm:gap-7 my-2">
-          
+
           {/* CARD 1: AGE GROUP DROPDOWN (Full Width & Spacious) */}
           <div className="p-7 sm:p-8 rounded-3xl bg-[#131d2e] border border-slate-800/90 hover:border-cyan-500/40 transition-all flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -448,7 +449,7 @@ export default function AdaptiveQuestionnaire({
                 Calibrated from 6 to 50+ years
               </span>
             </div>
-            
+
             <div className="relative mt-1">
               <select
                 id="age-dropdown"
@@ -487,7 +488,7 @@ export default function AdaptiveQuestionnaire({
                 Workplace & Routine Context
               </span>
             </div>
-            
+
             <div className="relative mt-1">
               <select
                 id="profession-dropdown"
@@ -585,7 +586,7 @@ export default function AdaptiveQuestionnaire({
 
   return (
     <div className="w-full max-w-4xl mx-auto rounded-[2.2rem] p-7 sm:p-11 md:p-14 border border-slate-800/90 bg-slate-900/95 backdrop-blur-2xl shadow-2xl flex flex-col gap-6 text-left transition-all animate-fadeIn">
-      
+
       {/* Top Header & Meta: Protocol, Demographic Tag, Question Count */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -612,7 +613,7 @@ export default function AdaptiveQuestionnaire({
 
         {/* Sleek Progress Bar (Cyan to Lavender Gradient) */}
         <div className="w-full h-1.5 sm:h-2 bg-slate-800/80 rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-purple-400 transition-all duration-300 rounded-full"
             style={{ width: `${progressPercent}%` }}
           ></div>
@@ -624,7 +625,7 @@ export default function AdaptiveQuestionnaire({
         <h2 className="text-2xl sm:text-3xl font-bold text-white leading-snug tracking-tight">
           {currentQ.text}
         </h2>
-        
+
         <button
           type="button"
           onClick={() => {
@@ -636,11 +637,10 @@ export default function AdaptiveQuestionnaire({
           }}
           aria-label="Listen to question"
           title={isSpeaking ? 'Stop voice' : 'Listen to question'}
-          className={`shrink-0 w-11 h-11 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
-            isSpeaking
+          className={`shrink-0 w-11 h-11 rounded-full border flex items-center justify-center transition-all cursor-pointer ${isSpeaking
               ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse'
               : 'bg-slate-800/80 text-slate-300 border-slate-700/60 hover:text-cyan-400 hover:border-cyan-400'
-          }`}
+            }`}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
@@ -653,11 +653,10 @@ export default function AdaptiveQuestionnaire({
         <button
           type="button"
           onClick={() => handlePrimaryAnswer('Yes')}
-          className={`py-6 px-8 rounded-2xl font-bold text-xl sm:text-2xl transition-all duration-200 border cursor-pointer flex items-center justify-center gap-2 ${
-            currentAns.answer === 'Yes'
+          className={`py-6 px-8 rounded-2xl font-bold text-xl sm:text-2xl transition-all duration-200 border cursor-pointer flex items-center justify-center gap-2 ${currentAns.answer === 'Yes'
               ? 'bg-slate-800/90 text-cyan-300 border-cyan-400 shadow-[0_0_25px_rgba(34,211,238,0.25)] ring-2 ring-cyan-400/50'
               : 'bg-[#131d2e] hover:bg-slate-800/70 text-slate-300 hover:text-white border-slate-800/90'
-          }`}
+            }`}
         >
           <span>True</span>
         </button>
@@ -665,11 +664,10 @@ export default function AdaptiveQuestionnaire({
         <button
           type="button"
           onClick={() => handlePrimaryAnswer('No')}
-          className={`py-6 px-8 rounded-2xl font-bold text-xl sm:text-2xl transition-all duration-200 border cursor-pointer flex items-center justify-center gap-2 ${
-            currentAns.answer === 'No'
+          className={`py-6 px-8 rounded-2xl font-bold text-xl sm:text-2xl transition-all duration-200 border cursor-pointer flex items-center justify-center gap-2 ${currentAns.answer === 'No'
               ? 'bg-slate-800/90 text-white border-slate-500 shadow-lg ring-2 ring-slate-500/50'
               : 'bg-[#131d2e] hover:bg-slate-800/70 text-slate-300 hover:text-white border-slate-800/90'
-          }`}
+            }`}
         >
           <span>False</span>
         </button>
@@ -679,7 +677,7 @@ export default function AdaptiveQuestionnaire({
       {currentAns.answer === 'No' && (
         <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-800 flex items-center justify-between text-xs sm:text-sm text-slate-300 animate-fadeIn">
           <span className="flex items-center gap-2 text-cyan-400 font-medium">
-            <span>✓</span> No disruption noted in this domain. Click <strong>Next →</strong> to proceed.
+            <span></span> No disruption noted in this domain. Click <strong>Next →</strong> to proceed.
           </span>
         </div>
       )}
@@ -687,9 +685,9 @@ export default function AdaptiveQuestionnaire({
       {/* BRANCH B: USER ANSWERED "YES" (True) -> EXPAND IN-DEPTH 2-3 DOMAIN FOLLOW-UPS */}
       {currentAns.answer === 'Yes' && (
         <div className="flex flex-col gap-6 p-6 sm:p-7 rounded-2xl bg-slate-950/70 border border-cyan-500/30 shadow-inner animate-fadeIn mt-2">
-          
+
           <div className="flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-wider border-b border-slate-800 pb-3">
-            <span>🔍</span> In-Depth Domain Calibration ({currentQ.domain})
+            <span></span> In-Depth Domain Calibration ({currentQ.domain})
           </div>
 
           {/* Follow-up 1: Clinical Nuance Probe */}
@@ -702,22 +700,20 @@ export default function AdaptiveQuestionnaire({
                 <button
                   type="button"
                   onClick={() => handleFollowUpAnswer('Yes')}
-                  className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${
-                    currentAns.follow_up_answer === 'Yes'
+                  className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${currentAns.follow_up_answer === 'Yes'
                       ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md'
                       : 'bg-[#131d2e] text-slate-300 border-slate-700/80 hover:text-white'
-                  }`}
+                    }`}
                 >
                   Yes (True)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleFollowUpAnswer('No')}
-                  className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${
-                    currentAns.follow_up_answer === 'No'
+                  className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${currentAns.follow_up_answer === 'No'
                       ? 'bg-slate-700 text-white border-slate-500'
                       : 'bg-[#131d2e] text-slate-300 border-slate-700/80 hover:text-white'
-                  }`}
+                    }`}
                 >
                   No (False)
                 </button>
@@ -737,22 +733,20 @@ export default function AdaptiveQuestionnaire({
               <button
                 type="button"
                 onClick={() => handleContextAnswer('Yes')}
-                className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${
-                  currentAns.context_answer === 'Yes'
+                className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${currentAns.context_answer === 'Yes'
                     ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md'
                     : 'bg-[#131d2e] text-slate-300 border-slate-700/80 hover:text-white'
-                }`}
+                  }`}
               >
                 Yes, Affected Work/Routine
               </button>
               <button
                 type="button"
                 onClick={() => handleContextAnswer('No')}
-                className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${
-                  currentAns.context_answer === 'No'
+                className={`py-3 px-5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${currentAns.context_answer === 'No'
                     ? 'bg-slate-700 text-white border-slate-500'
                     : 'bg-[#131d2e] text-slate-300 border-slate-700/80 hover:text-white'
-                }`}
+                  }`}
               >
                 No, Did Not Affect
               </button>
@@ -777,11 +771,10 @@ export default function AdaptiveQuestionnaire({
                   key={item.score}
                   type="button"
                   onClick={() => handleDistressSelect(item.score)}
-                  className={`py-2.5 px-1 text-center rounded-xl text-xs sm:text-sm font-bold border transition-all cursor-pointer ${
-                    currentAns.distress_level === item.score
+                  className={`py-2.5 px-1 text-center rounded-xl text-xs sm:text-sm font-bold border transition-all cursor-pointer ${currentAns.distress_level === item.score
                       ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md scale-105'
                       : 'bg-[#131d2e] text-slate-300 border-slate-700/80 hover:text-white hover:border-slate-500'
-                  }`}
+                    }`}
                 >
                   {item.label}
                 </button>
@@ -801,11 +794,10 @@ export default function AdaptiveQuestionnaire({
           type="button"
           onClick={handlePrev}
           disabled={currentIndex === 0}
-          className={`rounded-full px-8 py-3.5 font-bold text-sm sm:text-base border transition-all flex items-center gap-2 ${
-            currentIndex === 0
+          className={`rounded-full px-8 py-3.5 font-bold text-sm sm:text-base border transition-all flex items-center gap-2 ${currentIndex === 0
               ? 'opacity-30 border-slate-800 text-slate-600 bg-slate-900/50 cursor-not-allowed'
               : 'bg-[#131d2e] border-slate-700/80 text-white hover:bg-slate-800 hover:border-slate-500 cursor-pointer'
-          }`}
+            }`}
         >
           <span>← Back</span>
         </button>
@@ -814,11 +806,10 @@ export default function AdaptiveQuestionnaire({
           type="button"
           onClick={handleNext}
           disabled={isNextDisabled}
-          className={`rounded-full px-9 py-3.5 font-black text-sm sm:text-base transition-all duration-200 flex items-center gap-2 ${
-            isNextDisabled
+          className={`rounded-full px-9 py-3.5 font-black text-sm sm:text-base transition-all duration-200 flex items-center gap-2 ${isNextDisabled
               ? 'opacity-30 bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed shadow-none'
               : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950 shadow-[0_0_25px_rgba(34,211,238,0.5)] hover:shadow-[0_0_35px_rgba(34,211,238,0.7)] cursor-pointer hover:scale-[1.02]'
-          }`}
+            }`}
         >
           <span>{currentIndex === questions.length - 1 ? 'View Insights →' : 'Next →'}</span>
         </button>

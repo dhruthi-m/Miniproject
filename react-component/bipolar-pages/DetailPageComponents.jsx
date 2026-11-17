@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   LineChart, 
@@ -83,7 +83,7 @@ export function RiskPage({ symptomsCount }) {
         shortExplanation: 'Significant mood elevation, behavioral fluctuations, and elevated activity levels detected.',
         concern: 'High clinical concern',
         iconColor: 'text-red-400',
-        badge: '🔴 High Risk'
+        badge: 'High Risk'
       };
     }
     if (symptomsCount >= 7) {
@@ -100,7 +100,7 @@ export function RiskPage({ symptomsCount }) {
         shortExplanation: 'Elevated indicators of rapid-cycling energy shifts and fluctuations reported.',
         concern: 'Moderate clinical concern',
         iconColor: 'text-orange-400',
-        badge: '🟠 Moderate Risk'
+        badge: 'Moderate Risk'
       };
     }
     if (symptomsCount >= 4) {
@@ -117,7 +117,7 @@ export function RiskPage({ symptomsCount }) {
         shortExplanation: 'Mild mood variations and trace impulsivity indicators.',
         concern: 'Low clinical concern',
         iconColor: 'text-cyan-400',
-        badge: '🟡 Mild Risk'
+        badge: 'Mild Risk'
       };
     }
     return {
@@ -133,7 +133,7 @@ export function RiskPage({ symptomsCount }) {
       shortExplanation: 'Few or no flags detected; typical mood variation baseline.',
       concern: 'No clinical concern',
       iconColor: 'text-green-400',
-      badge: '🟢 Low Risk'
+      badge: 'Low Risk'
     };
   }, [symptomsCount]);
 
@@ -1010,7 +1010,7 @@ export function SeekHelpPage() {
         <div className="bg-red-500/5 border border-red-500/15 rounded-[20px] p-6 shadow-xl flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-red-400 uppercase tracking-widest mb-2 border-b border-red-500/10 pb-2">
-              🚨 Emergency Warning Signs
+               Emergency Warning Signs
             </h3>
             <p className="text-slate-300 leading-relaxed">
               If you or a loved one are experiencing thoughts of suicide, self-harm, severe depressive episodes, or hallucinations, seek immediate clinical attention.
@@ -1328,3 +1328,4 @@ export function SeverityPage({ answers }) {
     </div>
   );
 }
+

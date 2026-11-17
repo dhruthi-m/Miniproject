@@ -22,7 +22,7 @@ export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
 
 // ── 2. HIGH ACCURACY PROGRESSIVE BROWSER GEOLOCATION ───────────────────────
 export function getGpsLocation(options = {}) {
-  const { timeout = 8000, highAccuracy = true } = options;
+  const { timeout = 12000, highAccuracy = true } = options;
 
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -30,21 +30,19 @@ export function getGpsLocation(options = {}) {
       return;
     }
 
-    let bestPosition = null;
-    let watchId = null;
     let settled = false;
-    let timeoutTimer = null;
+    let watchId = null;
+    let bestPosition = null;
+    let safetyTimer = null;
 
     const cleanup = () => {
       if (watchId !== null) {
-        try {
-          navigator.geolocation.clearWatch(watchId);
-        } catch {}
+        try { navigator.geolocation.clearWatch(watchId); } catch {}
         watchId = null;
       }
-      if (timeoutTimer !== null) {
-        clearTimeout(timeoutTimer);
-        timeoutTimer = null;
+      if (safetyTimer !== null) {
+        clearTimeout(safetyTimer);
+        safetyTimer = null;
       }
     };
 
@@ -55,95 +53,69 @@ export function getGpsLocation(options = {}) {
       resolve({
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
-        accuracy: Math.round(pos.coords.accuracy || 20),
+        accuracy: Math.round(pos.coords.accuracy || 15),
         timestamp: pos.timestamp
       });
     };
 
-    const handleSuccess = (position) => {
-      const acc = position.coords.accuracy || 999;
-      if (!bestPosition || acc < (bestPosition.coords.accuracy || 999)) {
-        bestPosition = position;
-      }
-
-      // If accuracy is sharp (<= 30 meters), resolve immediately
-      if (acc <= 30) {
-        commitPosition(position);
-      }
-    };
-
-    const handleError = (error) => {
-      if (error.code === error.PERMISSION_DENIED) {
-        if (!settled) {
+    // 1. Direct high-accuracy request
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        commitPosition(pos);
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
           settled = true;
           cleanup();
-          reject(new Error('Location permission was denied. Please allow location access in your browser or search your city manually.'));
+          reject(new Error('Location permission was denied. Please allow location access in your browser or search your area manually.'));
+          return;
         }
-        return;
-      }
 
-      // For TIMEOUT or POSITION_UNAVAILABLE, attempt standard-accuracy fallback
-      if (!settled && !bestPosition) {
+        // Retry with standard accuracy if highAccuracy timed out
         navigator.geolocation.getCurrentPosition(
-          (pos) => commitPosition(pos),
+          (fallbackPos) => {
+            commitPosition(fallbackPos);
+          },
           (fallbackErr) => {
             if (!settled) {
               settled = true;
               cleanup();
-              let msg = 'Unable to retrieve precise GPS signal.';
-              if (fallbackErr.code === fallbackErr.TIMEOUT) {
-                msg = 'Location request timed out. Please try clicking "Enable GPS Location" again or search your area.';
-              } else if (fallbackErr.code === fallbackErr.POSITION_UNAVAILABLE) {
-                msg = 'Location information is currently unavailable on this device. You can search or select your city manually.';
-              }
-              reject(new Error(msg));
+              reject(new Error('Unable to retrieve precise GPS coordinates. You can search your area or drag the pin on the map.'));
             }
           },
-          { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+          { enableHighAccuracy: false, timeout: 6000, maximumAge: 30000 }
         );
-      }
-    };
-
-    // Use watchPosition to let GPS hardware and Wi-Fi positioning settle to the highest accuracy
-    try {
-      watchId = navigator.geolocation.watchPosition(
-        handleSuccess,
-        handleError,
-        {
-          enableHighAccuracy: highAccuracy,
-          timeout: timeout,
-          maximumAge: 0
-        }
-      );
-    } catch {
-      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-        enableHighAccuracy: true,
+      },
+      {
+        enableHighAccuracy: highAccuracy,
         timeout: timeout,
         maximumAge: 0
-      });
-    }
-
-    // After 3.5 seconds, if we have acquired any position, resolve with the best recorded one
-    timeoutTimer = setTimeout(() => {
-      if (!settled) {
-        if (bestPosition) {
-          commitPosition(bestPosition);
-        } else {
-          // One final low-accuracy attempt
-          navigator.geolocation.getCurrentPosition(
-            (pos) => commitPosition(pos),
-            () => {
-              if (!settled) {
-                settled = true;
-                cleanup();
-                reject(new Error('GPS signal acquisition timed out. Please try again or search your city/pincode.'));
-              }
-            },
-            { enableHighAccuracy: false, timeout: 3500, maximumAge: 120000 }
-          );
-        }
       }
-    }, 3500);
+    );
+
+    // 2. Also start watchPosition to catch pinpoint satellite / Wi-Fi lock (< 40m)
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const acc = pos.coords.accuracy || 999;
+          if (!bestPosition || acc < (bestPosition.coords.accuracy || 999)) {
+            bestPosition = pos;
+          }
+          if (acc <= 40) {
+            commitPosition(pos);
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: timeout, maximumAge: 0 }
+      );
+    } catch {}
+
+    // Safety fallback timer
+    safetyTimer = setTimeout(() => {
+      if (!settled && bestPosition) {
+        commitPosition(bestPosition);
+      }
+    }, timeout);
   });
 }
 
@@ -215,7 +187,11 @@ export async function reverseGeocode(lat, lng) {
         }
 
         if (parts.length > 0) {
-          return parts.join(', ');
+          const formatted = parts.join(', ');
+          if (lat >= 13.315 && lat <= 13.340 && lng >= 77.110 && lng <= 77.140 && /maruthi nagar|sit/i.test(formatted)) {
+            return 'SIT Extension, Tumakuru';
+          }
+          return formatted;
         }
       }
     }
@@ -240,7 +216,11 @@ export async function reverseGeocode(lat, lng) {
       if (city && city !== locality) parts.push(city);
       if (state && !parts.includes(state)) parts.push(state);
       if (parts.length > 0) {
-        return parts.join(', ');
+        const formatted = parts.join(', ');
+        if (lat >= 13.320 && lat <= 13.335 && lng >= 77.118 && lng <= 77.135 && /maruthi nagar|sit/i.test(formatted)) {
+          return 'SIT Extension, Tumakuru';
+        }
+        return formatted;
       }
     }
   } catch {}
@@ -253,9 +233,7 @@ export async function reverseGeocode(lat, lng) {
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=15&addressdetails=1`,
       {
         signal: nomCtrl.signal,
-        headers: {
-          'Accept-Language': 'en'
-        }
+        headers: { 'Accept-Language': 'en', 'User-Agent': 'MindWaveHealthcare/1.0' }
       }
     );
     clearTimeout(nomTimeout);
@@ -270,7 +248,13 @@ export async function reverseGeocode(lat, lng) {
       if (suburb) parts.push(suburb);
       if (city && city !== suburb) parts.push(city);
       if (state && !parts.includes(state)) parts.push(state);
-      if (parts.length > 0) return parts.join(', ');
+      if (parts.length > 0) {
+        const formatted = parts.join(', ');
+        if (lat >= 13.320 && lat <= 13.335 && lng >= 77.118 && lng <= 77.135 && /maruthi nagar|sit/i.test(formatted)) {
+          return 'SIT Extension, Tumakuru';
+        }
+        return formatted;
+      }
     }
   } catch {}
 
@@ -281,8 +265,29 @@ export async function reverseGeocode(lat, lng) {
 export async function searchLocationByQuery(query) {
   if (!query || query.trim().length < 2) return [];
   const q = query.trim();
+  const lowerQ = q.toLowerCase();
 
-  // 1. Try Photon Geocoder
+  const results = [];
+
+  // 1. Instant local campus/hub matching
+  if (lowerQ.includes('sit') || lowerQ.includes('extension') || lowerQ.includes('tumkur') || lowerQ.includes('tumakuru')) {
+    results.push({
+      id: 'local-sit-ext',
+      name: 'SIT Extension, Tumakuru',
+      fullName: 'SIT Extension, SIT Back Gate Road, Tumakuru, Karnataka 572103',
+      lat: 13.3282,
+      lng: 77.1245
+    });
+    results.push({
+      id: 'local-sit-campus',
+      name: 'SIT Campus (Siddaganga Institute of Technology)',
+      fullName: 'SIT Main Campus, B.H. Road, Tumakuru, Karnataka 572103',
+      lat: 13.3265,
+      lng: 77.1265
+    });
+  }
+
+  // 2. Try Photon Geocoder
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 3500);
@@ -293,7 +298,7 @@ export async function searchLocationByQuery(query) {
     if (res.ok) {
       const data = await res.json();
       if (data.features && data.features.length > 0) {
-        return data.features.map((f, idx) => {
+        data.features.forEach((f, idx) => {
           const p = f.properties || {};
           const [lng, lat] = f.geometry?.coordinates || [0, 0];
           const parts = [
@@ -312,41 +317,54 @@ export async function searchLocationByQuery(query) {
             }
           });
 
-          return {
-            id: `photon-${p.osm_id || idx}-${Math.random().toString(36).substr(2, 5)}`,
-            name: displayParts.slice(0, 3).join(', ') || p.name || q,
-            fullName: displayParts.join(', '),
-            lat,
-            lng,
-            postcode: p.postcode || ''
-          };
-        }).filter(item => item.lat && item.lng);
+          if (lat && lng && !results.some(r => r.name.toLowerCase() === (p.name || '').toLowerCase())) {
+            results.push({
+              id: `photon-${p.osm_id || idx}-${Math.random().toString(36).substr(2, 5)}`,
+              name: displayParts.slice(0, 3).join(', ') || p.name || q,
+              fullName: displayParts.join(', '),
+              lat,
+              lng,
+              postcode: p.postcode || ''
+            });
+          }
+        });
       }
     }
   } catch {}
 
-  // 2. Fallback to Nominatim
-  try {
-    const ctrl2 = new AbortController();
-    const timer2 = setTimeout(() => ctrl2.abort(), 3500);
-    const res2 = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`,
-      { signal: ctrl2.signal, headers: { 'Accept-Language': 'en' } }
-    );
-    clearTimeout(timer2);
-    if (res2.ok) {
-      const data = await res2.json();
-      return (data || []).map(item => ({
-        id: `nom-${item.place_id}`,
-        name: item.display_name.split(',').slice(0, 3).join(',').trim(),
-        fullName: item.display_name,
-        lat: parseFloat(item.lat),
-        lng: parseFloat(item.lon)
-      })).filter(item => !isNaN(item.lat) && !isNaN(item.lng));
-    }
-  } catch {}
+  // 3. Fallback to Nominatim if results list is still sparse
+  if (results.length < 3) {
+    try {
+      const ctrl2 = new AbortController();
+      const timer2 = setTimeout(() => ctrl2.abort(), 3500);
+      const res2 = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`,
+        { signal: ctrl2.signal, headers: { 'Accept-Language': 'en', 'User-Agent': 'MindWaveHealthcare/1.0' } }
+      );
+      clearTimeout(timer2);
+      if (res2.ok) {
+        const data = await res2.json();
+        (data || []).forEach(item => {
+          const pLat = parseFloat(item.lat);
+          const pLng = parseFloat(item.lon);
+          if (!isNaN(pLat) && !isNaN(pLng)) {
+            const shortName = item.display_name.split(',').slice(0, 3).join(',').trim();
+            if (!results.some(r => r.name.toLowerCase() === shortName.toLowerCase())) {
+              results.push({
+                id: `nom-${item.place_id}`,
+                name: shortName,
+                fullName: item.display_name,
+                lat: pLat,
+                lng: pLng
+              });
+            }
+          }
+        });
+      }
+    } catch {}
+  }
 
-  return [];
+  return results;
 }
 
 // ── 5. REAL ACCREDITED TERTIARY PSYCHIATRIC HOSPITALS (VERIFIED GOVERNMENT & APEX INSTITUTES) ──
@@ -730,7 +748,6 @@ export function isVeterinaryOrAnimalPlace(placeOrName, extraContext = '') {
     const category = p.category || p.class || '';
     const typesArray = Array.isArray(p.types) ? p.types.join(' ') : (p.types || '');
 
-    // Direct OSM and Google Places tags
     if (
       type === 'veterinary' ||
       type === 'animal_shelter' ||
@@ -747,7 +764,7 @@ export function isVeterinaryOrAnimalPlace(placeOrName, extraContext = '') {
   }
 
   const vetPatterns = [
-    /\bveterinar(y|ian|ies)\b/i,
+    /\bvet[e|a]?r[i|e|a]?nar[a-z]*\b/i, // catches veterinary, veternary, vetenary, etc.
     /\bvet\b/i,
     /\bvets\b/i,
     /\bvet's\b/i,
@@ -782,7 +799,8 @@ export function isVeterinaryOrAnimalPlace(placeOrName, extraContext = '') {
     /\bk9\b/i,
     /\bvets4pets\b/i,
     /\bavian\b/i,
-    /\bbird clinic\b/i
+    /\bbird clinic\b/i,
+    /\bpoultry\b/i
   ];
 
   return vetPatterns.some(pattern => pattern.test(combinedText));
@@ -804,18 +822,65 @@ export function isExcludedNonMentalFacility(placeOrName, extraContext = '') {
     text = `${name} ${displayName} ${addr} ${extraContext}`.toLowerCase();
   }
 
-  // Dental clinics
-  if (/\b(dental|dentist|orthodont|dento|tooth|teeth)\b/i.test(text)) return true;
-  // Eye / Optometry
-  if (/\b(eye hospital|eye clinic|eye care|ophthalm|optom|lasik|cataract|vision care|optics)\b/i.test(text)) return true;
-  // Cosmetic / Aesthetics / Dermatology (unless full multi-specialty hospital)
-  if (/\b(cosmetic surgery|plastic surgery|aesthetic clinic|skin clinic|hair transplant|trichology)\b/i.test(text) && !text.includes('general hospital') && !text.includes('medical college')) return true;
-  // Pure IVF / Fertility clinics
-  if (/\b(ivf center|ivf clinic|ivf centre|fertility clinic|fertility center)\b/i.test(text)) return true;
-  // Isolated Physiotherapy clinics
-  if (/\b(physiotherapy center|physiotherapy clinic|physio clinic)\b/i.test(text)) return true;
-  // Pathology labs, scan centres, blood banks, pharmacies
-  if (/\b(pathology lab|diagnostic lab|blood bank|pharmacy|chemist|medical store)\b/i.test(text)) return true;
+  // 1. Eye / Optometry / Ophthalmic / ENT (including Indian terms: Nayana, Nayanadhama, Netra, Netralaya, Drishti, Akshi)
+  if (/\b(eye|eyes|ent|nayanadhama|nayana|netra|netralaya|netradhama|drishti|dhrishti|akshi|ophthalm|ophthalmic|ophthalmology|optom|optometry|lasik|cataract|vision|optics|optical|optician|spectacles?|retina|cornea|glaucoma)\b/i.test(text)) {
+    return true;
+  }
+
+  // 2. Chest, Respiratory & Pulmonology (e.g. R.P. Chest Hospital, TB hospitals)
+  if (/\b(chest hospital|chest clinic|chest centre|chest center|chest care|pulmono|pulmonolog|pulmonology|pulmonologist|respiratory|respiratory medicine|respiratory hospital|respiratory clinic|tb hospital|tb clinic|tuberculosis|asthma|lungs? clinic|lungs? care|bronch)\b/i.test(text)) {
+    return true;
+  }
+
+  // 3. Dental clinics & Oral care
+  if (/\b(dental|dentist|dentistry|orthodont|dento|tooth|teeth|oral care)\b/i.test(text)) {
+    return true;
+  }
+
+  // 4. Cosmetic, Skin, Hair & Laser (unless general hospital / medical college)
+  if (/\b(skin clinic|skin care|skin hospital|hair clinic|hair transplant|laser clinic|laser centre|laser center|cosmetic surgery|plastic surgery|aesthetic clinic|dermatol|trichology)\b/i.test(text) && !text.includes('general hospital') && !text.includes('medical college')) {
+    return true;
+  }
+
+  // 5. Gastroenterology, Endoscopy & Liver (unless full multi-specialty hospital)
+  if (/\b(gastro|gastroenterolog|endoscopy centre|endoscopy center|liver care|digestive)\b/i.test(text) && !text.includes('general hospital') && !text.includes('medical college')) {
+    return true;
+  }
+
+  // 6. Maternity, Obstetrics, Gynecology & Fertility / IVF
+  if (/\b(maternity|pregnancy|gynec|gynaec|obstetric|ivf center|ivf clinic|ivf centre|fertility clinic|fertility center|women and child)\b/i.test(text) && !text.includes('general hospital') && !text.includes('medical college')) {
+    return true;
+  }
+
+  // 7. Diabetes & Endocrine specialty clinics
+  if (/\b(diabetic hospital|diabetes clinic|diabetes centre|diabetes center|endocrin)\b/i.test(text) && !text.includes('general hospital') && !text.includes('medical college')) {
+    return true;
+  }
+
+  // 8. Orthopedic, Bone & Joint single-specialty centers
+  if (/\b(ortho hospital|orthopedic hospital|orthopaedic hospital|bone and joint|joint replacement|spine clinic)\b/i.test(text) && !text.includes('general hospital') && !text.includes('medical college')) {
+    return true;
+  }
+
+  // 9. Homeopathy & Ayurveda standalone clinics (unless explicitly psychiatric)
+  if (/\b(homeo|homeopath|ayurved|ayurvedic|ayush|naturopath)\b/i.test(text) && !text.includes('mental') && !text.includes('psych')) {
+    return true;
+  }
+
+  // 10. Pure Pediatric / Children's standalone clinics (unless child psychiatry)
+  if (/\b(children'?s? clinic|children'?s? hospital|pediatric clinic|pediatric hospital|child clinic|childern)\b/i.test(text) && !text.includes('mental') && !text.includes('psych') && !text.includes('general hospital')) {
+    return true;
+  }
+
+  // 11. Pathology labs, scan centres, blood banks, pharmacies
+  if (/\b(pathology lab|diagnostic lab|blood bank|pharmacy|chemist|medical store|mri scan|ct scan)\b/i.test(text)) {
+    return true;
+  }
+
+  // 12. Kidney, Dialysis & Urology single-specialty clinics
+  if (/\b(nephro|dialysis centre|dialysis center|urology clinic|urologist)\b/i.test(text) && !text.includes('general hospital') && !text.includes('medical college')) {
+    return true;
+  }
 
   return false;
 }
@@ -832,34 +897,42 @@ export async function fetchRealNearbyMedicalPlaces(lat, lng, cityName = '') {
   const seenNames = new Set();
 
   try {
-    const hospUrl = `https://nominatim.openstreetmap.org/search?format=json&q=hospital&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=15&addressdetails=1`;
-    const psychUrl = `https://nominatim.openstreetmap.org/search?format=json&q=psychiatrist&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=10&addressdetails=1`;
-    const mentalUrl = `https://nominatim.openstreetmap.org/search?format=json&q=mental+health&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=8&addressdetails=1`;
-    const clinicUrl = `https://nominatim.openstreetmap.org/search?format=json&q=clinic&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=10&addressdetails=1`;
+    // Targeted queries: Hospitals, Psychiatrists, Mental Health, and Psychiatric Hospitals
+    const hospUrl = `https://nominatim.openstreetmap.org/search?format=json&q=hospital&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=25&addressdetails=1`;
+    const psychUrl = `https://nominatim.openstreetmap.org/search?format=json&q=psychiatrist&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=15&addressdetails=1`;
+    const mentalUrl = `https://nominatim.openstreetmap.org/search?format=json&q=mental+health&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=15&addressdetails=1`;
+    const psychHospUrl = `https://nominatim.openstreetmap.org/search?format=json&q=psychiatric+hospital&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=1&limit=10&addressdetails=1`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6500);
+    const timeoutId = setTimeout(() => controller.abort(), 7500);
 
-    const [hospRes, psychRes, mentalRes, clinicRes] = await Promise.allSettled([
-      fetch(hospUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en' } }),
-      fetch(psychUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en' } }),
-      fetch(mentalUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en' } }),
-      fetch(clinicUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en' } })
+    const [hospRes, psychRes, mentalRes, psychHospRes] = await Promise.allSettled([
+      fetch(hospUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en', 'User-Agent': 'MindWaveHealthcare/1.0' } }),
+      fetch(psychUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en', 'User-Agent': 'MindWaveHealthcare/1.0' } }),
+      fetch(mentalUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en', 'User-Agent': 'MindWaveHealthcare/1.0' } }),
+      fetch(psychHospUrl, { signal: controller.signal, headers: { 'Accept-Language': 'en', 'User-Agent': 'MindWaveHealthcare/1.0' } })
     ]);
     clearTimeout(timeoutId);
 
     const processOsmPlace = (p, defaultType = 'hospital', defaultBadge = 'Registered Hospital (Live GPS)') => {
       let name = p.name || p.address?.amenity || p.address?.hospital || p.address?.clinic || '';
       name = name.trim();
-      if (!name || name.toLowerCase() === 'hospital' || name.toLowerCase() === 'clinic') return null;
+      if (!name || name.toLowerCase() === 'hospital' || name.toLowerCase() === 'clinic') {
+        const firstPart = (p.display_name || '').split(',')[0].trim();
+        if (firstPart && firstPart.length > 2) {
+          name = firstPart;
+        } else {
+          return null;
+        }
+      }
 
       const normName = name.toLowerCase();
       if (seenNames.has(normName)) return null;
 
       const addr = p.display_name?.split(',').slice(1, 5).join(',').trim() || cityName;
 
-      // STRICT EXCLUSION: Veterinary clinics and irrelevant non-mental facilities MUST NEVER BE ADDED
-      if (isExcludedNonMentalFacility(p, addr)) {
+      // STRICT EXCLUSION: Veterinary, Eye, Chest, and other non-mental facilities MUST NEVER BE ADDED
+      if (isExcludedNonMentalFacility(p, addr) || isExcludedNonMentalFacility(name, addr)) {
         return null;
       }
 
@@ -920,18 +993,18 @@ export async function fetchRealNearbyMedicalPlaces(lat, lng, cityName = '') {
       });
     }
 
-    if (hospRes.status === 'fulfilled' && hospRes.value.ok) {
-      const data = await hospRes.value.json();
+    if (psychHospRes.status === 'fulfilled' && psychHospRes.value.ok) {
+      const data = await psychHospRes.value.json();
       data.forEach(p => {
-        const item = processOsmPlace(p, 'hospital', 'Registered Hospital (Live GPS)');
+        const item = processOsmPlace(p, 'hospital', 'Psychiatric Hospital (Live GPS)');
         if (item) realResults.push(item);
       });
     }
 
-    if (clinicRes.status === 'fulfilled' && clinicRes.value.ok) {
-      const data = await clinicRes.value.json();
+    if (hospRes.status === 'fulfilled' && hospRes.value.ok) {
+      const data = await hospRes.value.json();
       data.forEach(p => {
-        const item = processOsmPlace(p, 'hospital', 'Registered Healthcare Clinic (Live GPS)');
+        const item = processOsmPlace(p, 'hospital', 'Registered Hospital (Live GPS)');
         if (item) realResults.push(item);
       });
     }
@@ -1024,6 +1097,8 @@ export const EMERGENCY_HOTLINES = [
 
 // ── 10. PREDEFINED CITY HUBS FOR MANUAL SELECTION ───────────────────────────
 export const POPULAR_LOCATIONS = [
+  { id: 'sit-extension', name: 'SIT Extension, Tumakuru', lat: 13.3282, lng: 77.1245 },
+  { id: 'sit-campus', name: 'SIT Campus, Tumakuru', lat: 13.3265, lng: 77.1265 },
   { id: 'tumakuru', name: 'Tumakuru / Tumkur, Karnataka', lat: 13.3409, lng: 77.1010 },
   { id: 'bangalore', name: 'Bengaluru, Karnataka', lat: 12.9716, lng: 77.5946 },
   { id: 'mysore', name: 'Mysuru (Mysore), Karnataka', lat: 12.2958, lng: 76.6394 },

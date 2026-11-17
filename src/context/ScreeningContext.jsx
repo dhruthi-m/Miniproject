@@ -334,7 +334,7 @@ export function ScreeningProvider({ children }) {
       mlPrediction = {
         status: 'offline',
         is_supported: false,
-        unsupported_reason: 'Screening assessment is currently unavailable for this questionnaire or age group.'
+        unsupported_reason: 'The supplemental analysis service is currently offline or unreachable.'
       };
     }
 

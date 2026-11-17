@@ -127,6 +127,27 @@ function initializeDatabase() {
     if (!existingCols.includes('recommendations')) {
       db.prepare('ALTER TABLE assessments ADD COLUMN recommendations TEXT').run();
     }
+
+    // Safe migration: Add sentiment fields to mood_records for unified sentiment mirror across all journal types
+    const moodCols = db.prepare('PRAGMA table_info(mood_records)').all().map(c => c.name);
+    if (!moodCols.includes('sentiment_label')) {
+      db.prepare('ALTER TABLE mood_records ADD COLUMN sentiment_label TEXT').run();
+    }
+    if (!moodCols.includes('sentiment_details')) {
+      db.prepare('ALTER TABLE mood_records ADD COLUMN sentiment_details TEXT').run();
+    }
+
+    // Safe migration: Add entry_type and audio fields to journal_records
+    const journalCols = db.prepare('PRAGMA table_info(journal_records)').all().map(c => c.name);
+    if (!journalCols.includes('entry_type')) {
+      db.prepare("ALTER TABLE journal_records ADD COLUMN entry_type TEXT DEFAULT 'text'").run();
+    }
+    if (!journalCols.includes('audio_url')) {
+      db.prepare('ALTER TABLE journal_records ADD COLUMN audio_url TEXT').run();
+    }
+    if (!journalCols.includes('audio_duration')) {
+      db.prepare('ALTER TABLE journal_records ADD COLUMN audio_duration TEXT').run();
+    }
   } catch (err) {
     console.warn('Note on table migration:', err.message);
   }

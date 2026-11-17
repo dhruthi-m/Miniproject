@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -48,6 +48,7 @@ import { useScreening } from '../context/ScreeningContext';
 import GpsHealthcareMap from '../components/GpsHealthcareMap';
 import ExperimentalMlSection from '../components/ExperimentalMlSection';
 import { fetchMlPrediction } from '../services/mlService';
+import { generateAndPrintClinicalReport } from '../utils/reportGenerator';
 
 export default function ResultPage({ onNavigate }) {
   const { 
@@ -102,7 +103,7 @@ export default function ResultPage({ onNavigate }) {
       setMlResult({
         status: 'offline',
         is_supported: false,
-        unsupported_reason: 'Screening assessment is currently unavailable for this questionnaire or age group.'
+        unsupported_reason: 'The supplemental analysis service is currently offline or unreachable.'
       });
     } finally {
       setMlLoading(false);
@@ -175,7 +176,7 @@ export default function ResultPage({ onNavigate }) {
   const isHighRisk = score > 12;
 
 
-  // ── DATA CALCULATIONS FOR SECTION 2 (RESPONSE BREAKDOWN) ────────────────
+  // ------ DATA CALCULATIONS FOR SECTION 2 (RESPONSE BREAKDOWN) ------------------------------------------------
   // Dynamic question count based directly on user's actual screening input
   const userTotalQuestions = answers.length > 0 ? answers.length : (isSchizophrenia ? 16 : 15);
   const validAnswers = answers.filter(a => a && (a.answer === 'True' || a.answer === 'False'));
@@ -263,7 +264,20 @@ export default function ResultPage({ onNavigate }) {
   };
 
   const handlePrint = () => {
-    window.print();
+    generateAndPrintClinicalReport({
+      patientName: 'Participant',
+      assessmentType: testType,
+      date: completedDate,
+      ageGroup,
+      profession,
+      score,
+      maxScore,
+      distressScore: distressScoreDisplay,
+      category,
+      mlPrediction: mlResult,
+      answers,
+      recommendations: latestResult?.recommendations || []
+    });
   };
 
   const previousSession = React.useMemo(() => {
@@ -363,7 +377,7 @@ export default function ResultPage({ onNavigate }) {
 
   return (
     <div className="result-container" style={{ maxWidth: '840px', margin: '0 auto 4rem' }}>
-      {/* ── 1. TOP SECTION — ALWAYS VISIBLE ──────────────────────────────── */}
+      {/* ------ 1. TOP SECTION — ALWAYS VISIBLE ------------------------------------------------------------------------------------------------ */}
       <header style={{ textAlign: 'center', marginBottom: '2rem' }}>
         <h1 className="page-title">Your Screening Result</h1>
         <p className="page-description">Here is a summary of your assessment.</p>
@@ -409,7 +423,7 @@ export default function ResultPage({ onNavigate }) {
         </div>
       </div>
 
-      {/* ── LONGITUDINAL COMPARISON BANNER (if prior assessment exists) ── */}
+      {/* ------ LONGITUDINAL COMPARISON BANNER (if prior assessment exists) ------ */}
       {longitudinalDiff && (
         <section 
           className="longitudinal-quick-banner"
@@ -474,7 +488,7 @@ export default function ResultPage({ onNavigate }) {
         </section>
       )}
 
-      {/* ── PRIORITY GPS HEALTHCARE MAP (Only shown if risk score is strictly above 30 for 34) ── */}
+      {/* ------ PRIORITY GPS HEALTHCARE MAP (Only shown if risk score is strictly above 30 for 34) ------ */}
       {isHighRisk && (
         <section style={{ marginBottom: '2.5rem' }} id="gps-healthcare-priority-card">
           <GpsHealthcareMap
@@ -487,7 +501,7 @@ export default function ResultPage({ onNavigate }) {
         </section>
       )}
 
-      {/* ── SUPPLEMENTAL SCREENING ANALYSIS ── */}
+      {/* ------ SUPPLEMENTAL SCREENING ANALYSIS ------ */}
       <ExperimentalMlSection
         mlResult={mlResult}
         activeTest={testType}
@@ -498,10 +512,10 @@ export default function ResultPage({ onNavigate }) {
         isLoading={mlLoading}
       />
 
-      {/* ── 2. SEVEN EXPANDABLE ACCORDION HEADINGS ───────────────────────────── */}
+      {/* ------ 2. SEVEN EXPANDABLE ACCORDION HEADINGS --------------------------------------------------------------------------------------- */}
       <div className="result-accordion-group">
         
-        {/* ── HEADING 1: UNDERSTANDING YOUR RESULT ───────────────────────── */}
+        {/* ------ HEADING 1: UNDERSTANDING YOUR RESULT --------------------------------------------------------------------------- */}
         <div className="accordion-card">
           <button 
             type="button"
@@ -608,7 +622,7 @@ export default function ResultPage({ onNavigate }) {
                     borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--color-border)'
                   }}>
-                    👤 Evaluation Context: Cohort <strong>{ageGroup}</strong> · Profession: <strong>{profession}</strong>
+                     Evaluation Context: Cohort <strong>{ageGroup}</strong> · Profession: <strong>{profession}</strong>
                   </div>
                 )}
 
@@ -652,7 +666,7 @@ export default function ResultPage({ onNavigate }) {
           )}
         </div>
 
-        {/* ── HEADING 2: RESPONSE BREAKDOWN ───────────────────────────────── */}
+        {/* ------ HEADING 2: RESPONSE BREAKDOWN --------------------------------------------------------------------------------------------------- */}
         <div className="accordion-card">
           <button 
             type="button"
@@ -984,7 +998,7 @@ export default function ResultPage({ onNavigate }) {
           )}
         </div>
 
-        {/* ── HEADING 3: DOMAIN-WISE RESPONSE SUMMARY ────────────────────── */}
+        {/* ------ HEADING 3: DOMAIN-WISE RESPONSE SUMMARY ------------------------------------------------------------------ */}
         <div className="accordion-card">
           <button 
             type="button"
@@ -1056,7 +1070,7 @@ export default function ResultPage({ onNavigate }) {
           )}
         </div>
 
-        {/* ── HEADING 4: FOLLOW-UP INSIGHTS ───────────────────────────────── */}
+        {/* ------ HEADING 4: FOLLOW-UP INSIGHTS --------------------------------------------------------------------------------------------------- */}
         <div className="accordion-card">
           <button 
             type="button"
@@ -1139,7 +1153,7 @@ export default function ResultPage({ onNavigate }) {
           )}
         </div>
 
-        {/* ── HEADING 5: PERSONALIZED WELL-BEING RECOMMENDATIONS ─────────── */}
+        {/* ------ HEADING 5: PERSONALIZED WELL-BEING RECOMMENDATIONS --------------------------------- */}
         <div className="accordion-card">
           <button 
             type="button"
@@ -1226,7 +1240,7 @@ export default function ResultPage({ onNavigate }) {
 
               <div className="recommendations-grid">
                 
-                {/* ── CARD 1: SLEEP & CIRCADIAN PROTOCOL (Dynamic) ── */}
+                {/* ------ CARD 1: SLEEP & CIRCADIAN PROTOCOL (Dynamic) ------ */}
                 <div className="rec-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="rec-card-icon">
@@ -1241,7 +1255,7 @@ export default function ResultPage({ onNavigate }) {
                       padding: '0.15rem 0.5rem',
                       borderRadius: 'var(--radius-full)'
                     }}>
-                      {hasSleepIssue ? '⚡ Matched to Your Sleep Responses' : '🌙 Circadian Hygiene'}
+                      {hasSleepIssue ? ' Matched to Your Sleep Responses' : ' Circadian Hygiene'}
                     </span>
                   </div>
 
@@ -1301,7 +1315,7 @@ export default function ResultPage({ onNavigate }) {
                   {renderRecFeedbackBar('sleep', isBipolar ? 'Circadian Stabilization & Dark Therapy' : 'Circadian Sleep Schedule', 'Circadian Rhythm')}
                 </div>
 
-                {/* ── CARD 2: COGNITIVE DECELERATION OR SENSORY GROUNDING (Dynamic) ── */}
+                {/* ------ CARD 2: COGNITIVE DECELERATION OR SENSORY GROUNDING (Dynamic) ------ */}
                 <div className="rec-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="rec-card-icon">
@@ -1317,8 +1331,8 @@ export default function ResultPage({ onNavigate }) {
                       borderRadius: 'var(--radius-full)'
                     }}>
                       {isBipolar 
-                        ? (hasRacingThoughts ? '⚡ Matched to Racing Thoughts' : '🧠 Cognitive Clarity')
-                        : (hasPerceptualSensory ? '🌿 Matched to Sensory Responses' : '🧘 Grounding Habit')}
+                        ? (hasRacingThoughts ? ' Matched to Racing Thoughts' : ' Cognitive Clarity')
+                        : (hasPerceptualSensory ? ' Matched to Sensory Responses' : ' Grounding Habit')}
                     </span>
                   </div>
 
@@ -1380,7 +1394,7 @@ export default function ResultPage({ onNavigate }) {
                   {renderRecFeedbackBar('grounding', isBipolar ? 'Cognitive Deceleration & Pacing' : '5-4-3-2-1 Sensory Grounding', 'Grounding')}
                 </div>
 
-                {/* ── CARD 3: BEHAVIORAL SAFEGUARDS OR REALITY TESTING (Dynamic) ── */}
+                {/* ------ CARD 3: BEHAVIORAL SAFEGUARDS OR REALITY TESTING (Dynamic) ------ */}
                 <div className="rec-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="rec-card-icon">
@@ -1396,8 +1410,8 @@ export default function ResultPage({ onNavigate }) {
                       borderRadius: 'var(--radius-full)'
                     }}>
                       {isBipolar 
-                        ? (hasHighEnergyImpulse ? '⚡ Matched to Energy & Impulsivity' : '💡 Decision Guardrails')
-                        : (hasIdeationalBeliefs ? '💡 Matched to Ideational Beliefs' : '🏃 Physical Vitality')}
+                        ? (hasHighEnergyImpulse ? ' Matched to Energy & Impulsivity' : ' Decision Guardrails')
+                        : (hasIdeationalBeliefs ? ' Matched to Ideational Beliefs' : ' Physical Vitality')}
                     </span>
                   </div>
 
@@ -1457,7 +1471,7 @@ export default function ResultPage({ onNavigate }) {
                   {renderRecFeedbackBar('behavioral', isBipolar ? 'The 48-Hour Decision Rule' : 'Cognitive Flexibility & Peer Check-In', 'Behavioral')}
                 </div>
 
-                {/* ── CARD 4: AUTONOMIC NERVOUS SYSTEM BREATHING ── */}
+                {/* ------ CARD 4: AUTONOMIC NERVOUS SYSTEM BREATHING ------ */}
                 <div className="rec-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="rec-card-icon">
@@ -1472,7 +1486,7 @@ export default function ResultPage({ onNavigate }) {
                       padding: '0.15rem 0.5rem',
                       borderRadius: 'var(--radius-full)'
                     }}>
-                      💨 Vagal Regulation
+                       Vagal Regulation
                     </span>
                   </div>
 
@@ -1510,7 +1524,7 @@ export default function ResultPage({ onNavigate }) {
                   {renderRecFeedbackBar('breathing', 'Guided 4-7-8 Breathing Pacing', 'Vagal Regulation')}
                 </div>
 
-                {/* ── CARD 5: REFLECTIVE JOURNALING (Dynamic to Test) ── */}
+                {/* ------ CARD 5: REFLECTIVE JOURNALING (Dynamic to Test) ------ */}
                 <div className="rec-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="rec-card-icon">
@@ -1525,7 +1539,7 @@ export default function ResultPage({ onNavigate }) {
                       padding: '0.15rem 0.5rem',
                       borderRadius: 'var(--radius-full)'
                     }}>
-                      📝 Functional Journal
+                       Functional Journal
                     </span>
                   </div>
 
@@ -1548,7 +1562,7 @@ export default function ResultPage({ onNavigate }) {
                   </button>
                 </div>
 
-                {/* ── CARD 6: CLINICAL RESOURCES & HELPLINES ── */}
+                {/* ------ CARD 6: CLINICAL RESOURCES & HELPLINES ------ */}
                 <div className="rec-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="rec-card-icon">
@@ -1563,7 +1577,7 @@ export default function ResultPage({ onNavigate }) {
                       padding: '0.15rem 0.5rem',
                       borderRadius: 'var(--radius-full)'
                     }}>
-                      📚 Verified Resources
+                       Verified Resources
                     </span>
                   </div>
 
@@ -1624,7 +1638,7 @@ export default function ResultPage({ onNavigate }) {
           )}
         </div>
 
-        {/* ── HEADING 6: DETAILED RESPONSES (Navigates to Detailed Page) ───── */}
+        {/* ------ HEADING 6: DETAILED RESPONSES (Navigates to Detailed Page) --------------- */}
         <div className="accordion-card">
           <button 
             type="button"
@@ -1666,7 +1680,7 @@ export default function ResultPage({ onNavigate }) {
           )}
         </div>
 
-        {/* ── HEADING 7: NEARBY HOSPITALS & GOOD PSYCHIATRISTS (Only shown if risk score is above 30 for 34) ───── */}
+        {/* ------ HEADING 7: NEARBY HOSPITALS & GOOD PSYCHIATRISTS (Only shown if risk score is above 30 for 34) --------------- */}
         {isHighRisk && (
           <div className="accordion-card" id="accordion-gps-section">
             <button 
@@ -1718,7 +1732,7 @@ export default function ResultPage({ onNavigate }) {
         )}
       </div>
 
-      {/* ── 4. BOTTOM ACTION BUTTONS ───────────────────────────────────────── */}
+      {/* ------ 4. BOTTOM ACTION BUTTONS --------------------------------------------------------------------------------------------------------------------------- */}
       <div className="result-bottom-actions-grid">
         <button 
           type="button" 
@@ -1774,3 +1788,5 @@ export default function ResultPage({ onNavigate }) {
     </div>
   );
 }
+
+

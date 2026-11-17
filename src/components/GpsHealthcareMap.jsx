@@ -257,11 +257,12 @@ export default function GpsHealthcareMap({
     loadRealFacilities(userLocation.lat, userLocation.lng, userLocation.cityName);
   }, [userLocation.lat, userLocation.lng, userLocation.cityName, loadRealFacilities]);
 
-  // Dynamically initialize location on mount (silent IP detection or GPS if granted)
+  // Dynamically initialize location on mount (request high-accuracy GPS)
   useEffect(() => {
     let isMounted = true;
 
     async function initDynamicLocation() {
+      // 1. If permission already granted or autoLocate requested, immediately lock onto high-precision GPS
       if (navigator.permissions && navigator.permissions.query) {
         try {
           const status = await navigator.permissions.query({ name: 'geolocation' });
@@ -269,26 +270,13 @@ export default function GpsHealthcareMap({
             if (isMounted) handleEnableLocation();
             return;
           }
-        } catch {}
+        } catch { }
       }
 
       if (autoLocate) {
         if (isMounted) handleEnableLocation();
         return;
       }
-
-      // Silent IP-based city approximation so the map is not empty
-      try {
-        const approx = await detectApproximateLocationByIp();
-        if (approx && isMounted && !gpsActive) {
-          setUserLocation({
-            lat: approx.lat,
-            lng: approx.lng,
-            accuracy: null,
-            cityName: approx.cityName
-          });
-        }
-      } catch {}
     }
 
     initDynamicLocation();
@@ -304,9 +292,9 @@ export default function GpsHealthcareMap({
     if (activeFilter === 'hospital') {
       list = list.filter(f => f.type === 'hospital');
     } else if (activeFilter === 'psychiatrist') {
-      list = list.filter(f => 
-        f.type === 'psychiatrist' || 
-        f.categoryBadge?.toLowerCase().includes('psychiatric') || 
+      list = list.filter(f =>
+        f.type === 'psychiatrist' ||
+        f.categoryBadge?.toLowerCase().includes('psychiatric') ||
         f.categoryBadge?.toLowerCase().includes('mental') ||
         f.specialties?.some(s => s.toLowerCase().includes('psych'))
       );
@@ -317,7 +305,7 @@ export default function GpsHealthcareMap({
     // Search query filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(f => 
+      list = list.filter(f =>
         f.name.toLowerCase().includes(q) ||
         f.address.toLowerCase().includes(q) ||
         f.specialties?.some(s => s.toLowerCase().includes(q)) ||
@@ -347,9 +335,8 @@ export default function GpsHealthcareMap({
         scrollWheelZoom: false
       });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
       }).addTo(map);
 
@@ -402,7 +389,7 @@ export default function GpsHealthcareMap({
       popupAnchor: [0, -18]
     });
 
-    const userMarker = L.marker([userLocation.lat, userLocation.lng], { 
+    const userMarker = L.marker([userLocation.lat, userLocation.lng], {
       icon: userBeaconIcon,
       draggable: true,
       title: 'Drag me to adjust your location'
@@ -410,11 +397,11 @@ export default function GpsHealthcareMap({
       .bindPopup(`
         <div style="font-family: inherit; font-size: 0.9rem; padding: 4px;">
           <strong style="color: #7560D9; display: flex; align-items: center; gap: 4px;">
-            <span>📍 Your Location</span>
+            <span> Your Location</span>
           </strong>
           <p style="margin: 4px 0 2px 0; color: #1F2937; font-size: 0.84rem; font-weight: 600;">${userLocation.cityName}</p>
           ${userLocation.accuracy ? `<span style="font-size: 0.74rem; color: #10B981; font-weight: 600;">GPS Accuracy: ±${userLocation.accuracy}m</span><br/>` : ''}
-          <span style="font-size: 0.72rem; color: #6B7280; display: inline-block; margin-top: 4px;">💡 Drag this pin or click anywhere on the map to pinpoint your exact spot!</span>
+          <span style="font-size: 0.72rem; color: #6B7280; display: inline-block; margin-top: 4px;"> Drag this pin or click anywhere on the map to pinpoint your exact spot!</span>
         </div>
       `)
       .addTo(markersGroup);
@@ -454,10 +441,10 @@ export default function GpsHealthcareMap({
         html: `
           <div class="facility-pin ${isHosp ? 'pin-hospital' : 'pin-psychiatrist'}">
             <div class="pin-inner-icon">
-              ${isHosp 
-                ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12h12"/></svg>` 
-                : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>`
-              }
+              ${isHosp
+            ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12M6 12h12"/></svg>`
+            : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>`
+          }
             </div>
             <div class="pin-arrow"></div>
           </div>
@@ -471,9 +458,9 @@ export default function GpsHealthcareMap({
         <div style="font-family: inherit; font-size: 0.88rem; width: 230px; line-height: 1.4;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
             <span style="font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; background: ${isHosp ? '#FEE2E2' : '#ECE8FF'}; color: ${isHosp ? '#DC2626' : '#634FC8'};">
-              ${isHosp ? '🏥 Registered Hospital' : '🧠 Psychiatric Center'}
+              ${isHosp ? ' Registered Hospital' : ' Psychiatric Center'}
             </span>
-            <span style="font-weight: 700; font-size: 0.78rem; color: #D97706;">★ ${facility.rating}</span>
+            <span style="font-weight: 700; font-size: 0.78rem; color: #D97706;"> ${facility.rating}</span>
           </div>
           <h4 style="margin: 4px 0 2px 0; font-size: 0.94rem; font-weight: 700; color: #171744;">
             ${facility.name}
@@ -482,7 +469,7 @@ export default function GpsHealthcareMap({
             ${facility.address}
           </p>
           <div style="font-size: 0.8rem; font-weight: 600; color: #7560D9; margin-bottom: 8px;">
-            📍 ${facility.distanceText}
+             ${facility.distanceText}
           </div>
           <div style="display: flex; gap: 6px;">
             <a href="tel:${facility.phone.replace(/[^0-9+]/g, '')}" style="flex: 1; text-align: center; background: #7560D9; color: white; padding: 6px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
@@ -560,7 +547,7 @@ export default function GpsHealthcareMap({
           <div className="advisory-content">
             <div className="advisory-badge-row">
               <span className="advisory-risk-tag">
-                ⚠️ {riskLevel} Score Alert
+                ️ {riskLevel} Score Alert
               </span>
               <span className="advisory-sub-tag">
                 Recommended Action: Professional Clinical Evaluation
@@ -570,8 +557,8 @@ export default function GpsHealthcareMap({
               Connect With Nearby Mental Health Specialists & Emergency Hospitals
             </h3>
             <p className="advisory-description">
-              Your recent responses on the <strong>{testName}</strong> indicate elevated distress or clinical symptom indicators. 
-              Self-reflection is a helpful initial indicator, but <strong>evaluation by a licensed psychiatrist or emergency hospital team is strongly advised</strong>. 
+              Your recent responses on the <strong>{testName}</strong> indicate elevated distress or clinical symptom indicators.
+              Self-reflection is a helpful initial indicator, but <strong>evaluation by a licensed psychiatrist or emergency hospital team is strongly advised</strong>.
               Turn on GPS tracking below to view genuine registered hospitals and apex psychiatric centers in your locality.
             </p>
           </div>
@@ -586,9 +573,9 @@ export default function GpsHealthcareMap({
         </div>
         <div className="hotlines-pills-row">
           {EMERGENCY_HOTLINES.map((h, idx) => (
-            <a 
-              key={idx} 
-              href={`tel:${h.number.replace(/\D/g, '')}`} 
+            <a
+              key={idx}
+              href={`tel:${h.number.replace(/\D/g, '')}`}
               className="hotline-pill-link"
               title={h.description}
             >
@@ -621,8 +608,8 @@ export default function GpsHealthcareMap({
               />
               {isSearchingLoc && <RefreshCw size={14} className="spinner-rotate loc-search-spinner" />}
               {locSearchQuery && (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-clear-loc-search"
                   onClick={() => { setLocSearchQuery(''); setLocSuggestions([]); }}
                   title="Clear search"
@@ -709,7 +696,7 @@ export default function GpsHealthcareMap({
                 ) : (
                   <>
                     <MapPin size={18} />
-                    <span>📍 Detect Current Location</span>
+                    <span> Detect Current Location</span>
                   </>
                 )}
               </button>
@@ -768,7 +755,7 @@ export default function GpsHealthcareMap({
                 }}
               >
                 <option value={userLocation.cityName}>
-                  📍 {userLocation.cityName}
+                  {userLocation.cityName}
                 </option>
                 {POPULAR_LOCATIONS.map(loc => (
                   <option key={loc.id} value={loc.name}>
@@ -829,9 +816,9 @@ export default function GpsHealthcareMap({
             <UserCheck size={16} />
             <span>Psychiatric Centers</span>
             <span className="filter-count-badge">
-              {facilities.filter(f => 
-                f.type === 'psychiatrist' || 
-                f.categoryBadge?.toLowerCase().includes('psychiatric') || 
+              {facilities.filter(f =>
+                f.type === 'psychiatrist' ||
+                f.categoryBadge?.toLowerCase().includes('psychiatric') ||
                 f.specialties?.some(s => s.toLowerCase().includes('psych'))
               ).length}
             </span>
@@ -859,9 +846,9 @@ export default function GpsHealthcareMap({
               className="care-search-input"
             />
             {searchQuery && (
-              <button 
-                type="button" 
-                className="btn-clear-search" 
+              <button
+                type="button"
+                className="btn-clear-search"
                 onClick={() => setSearchQuery('')}
               >
                 <X size={14} />
@@ -883,7 +870,7 @@ export default function GpsHealthcareMap({
 
       {/* ── 5. MAIN TWO-COLUMN VIEW: RADAR MAP + REAL FACILITY LIST ─────────── */}
       <div className="care-interactive-grid">
-        
+
         {/* Left Column: Leaflet Interactive Map Container */}
         <div className="care-map-column">
           <div className="care-map-header">
@@ -904,8 +891,8 @@ export default function GpsHealthcareMap({
             </div>
           </div>
 
-          <div 
-            ref={mapContainerRef} 
+          <div
+            ref={mapContainerRef}
             className="leaflet-interactive-container"
             aria-label="Interactive map showing nearby hospitals and psychiatric centers"
           />
@@ -918,7 +905,7 @@ export default function GpsHealthcareMap({
 
         {/* Right Column: Real Facility Cards List & Direct Google Maps Radar */}
         <div className="care-list-column">
-          
+
           {/* ── LIVE GOOGLE MAPS PRACTICING PSYCHIATRISTS RADAR CARD ───────── */}
           <div className="live-psychiatrist-radar-card">
             <div className="radar-card-badge">
@@ -966,8 +953,8 @@ export default function GpsHealthcareMap({
               {activeFilter === 'hospital'
                 ? 'Nearby Registered Emergency Hospitals'
                 : activeFilter === 'psychiatrist'
-                ? 'Apex Psychiatric Hospitals & Referral Centers'
-                : 'Registered Hospitals & Accredited Psychiatric Centers'}
+                  ? 'Apex Psychiatric Hospitals & Referral Centers'
+                  : 'Registered Hospitals & Accredited Psychiatric Centers'}
             </h4>
             <span className="care-list-subtitle">
               Showing {displayedFacilities.length} verified physical centers around {userLocation.cityName.split(',')[0]}
@@ -986,8 +973,8 @@ export default function GpsHealthcareMap({
               <div className="empty-facilities-notice">
                 <Search size={32} color="var(--color-text-muted)" style={{ margin: '0 auto 0.5rem' }} />
                 <p>No facilities match your search criteria.</p>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn btn-outline btn-sm"
                   onClick={() => { setSearchQuery(''); setActiveFilter('all'); }}
                 >
@@ -1014,7 +1001,7 @@ export default function GpsHealthcareMap({
                         </span>
                         {facility.emergency24x7 && (
                           <span className="pill-emergency-247">
-                            ⚡ 24/7 Emergency
+                            24/7 Emergency
                           </span>
                         )}
                         {facility.verifiedRealPlace && (
@@ -1037,13 +1024,13 @@ export default function GpsHealthcareMap({
 
                     {facility.doctorLead && (
                       <p className="facility-doctor-lead">
-                        🏛️ {facility.doctorLead}
+                        ️ {facility.doctorLead}
                       </p>
                     )}
 
                     {facility.qualifications && (
                       <p className="facility-doctor-quals">
-                        🎓 {facility.qualifications}
+                        {facility.qualifications}
                       </p>
                     )}
 
@@ -1139,9 +1126,9 @@ export default function GpsHealthcareMap({
       {bookingFacility && (
         <div className="care-modal-overlay" onClick={() => setBookingFacility(null)}>
           <div className="care-booking-modal" onClick={(e) => e.stopPropagation()}>
-            <button 
-              type="button" 
-              className="btn-modal-close" 
+            <button
+              type="button"
+              className="btn-modal-close"
               onClick={() => setBookingFacility(null)}
               aria-label="Close consultation modal"
             >
@@ -1155,7 +1142,7 @@ export default function GpsHealthcareMap({
                 </div>
                 <h3>Consultation Referral Submitted!</h3>
                 <p>
-                  Your consultation assistance request for <strong>{bookingFacility.name}</strong> has been received. 
+                  Your consultation assistance request for <strong>{bookingFacility.name}</strong> has been received.
                   A care coordinator will reach out to <strong>{bookingForm.phone}</strong> with clinical details and appointment intake procedures.
                 </p>
                 <div className="success-ref-card">
@@ -1174,7 +1161,7 @@ export default function GpsHealthcareMap({
                       Request Consultation with {bookingFacility.name}
                     </h3>
                     <p className="modal-subtitle">
-                      {bookingFacility.address} • 📍 {bookingFacility.distanceText}
+                      {bookingFacility.address} •  {bookingFacility.distanceText}
                     </p>
                   </div>
                 </div>
@@ -1213,7 +1200,7 @@ export default function GpsHealthcareMap({
                           checked={bookingForm.consultMode === 'in-person'}
                           onChange={() => setBookingForm(prev => ({ ...prev, consultMode: 'in-person' }))}
                         />
-                        <span>🏥 In-Person Visit</span>
+                        <span> In-Person Visit</span>
                       </label>
                       <label className={`mode-label ${bookingForm.consultMode === 'telehealth' ? 'active' : ''}`}>
                         <input
@@ -1223,7 +1210,7 @@ export default function GpsHealthcareMap({
                           checked={bookingForm.consultMode === 'telehealth'}
                           onChange={() => setBookingForm(prev => ({ ...prev, consultMode: 'telehealth' }))}
                         />
-                        <span>💻 Tele-Consultation</span>
+                        <span> Tele-Consultation</span>
                       </label>
                     </div>
                   </div>
@@ -1274,9 +1261,9 @@ export default function GpsHealthcareMap({
       {showKeyModal && (
         <div className="care-modal-overlay" onClick={() => setShowKeyModal(false)}>
           <div className="care-booking-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-            <button 
-              type="button" 
-              className="btn-modal-close" 
+            <button
+              type="button"
+              className="btn-modal-close"
               onClick={() => setShowKeyModal(false)}
               aria-label="Close API Key modal"
             >
@@ -1308,7 +1295,7 @@ export default function GpsHealthcareMap({
                 <span>Zero API Key Required By Default</span>
               </strong>
               <span>
-                MindWave uses your browser's native GPS and free OpenStreetMap Nominatim radar. When you click <strong>"📍 Enable GPS Location"</strong>, it automatically detects your location and shows nearby registered physical hospitals and apex psychiatric centers for free.
+                MindWave uses your browser's native GPS and free OpenStreetMap Nominatim radar. When you click <strong>" Enable GPS Location"</strong>, it automatically detects your location and shows nearby registered physical hospitals and apex psychiatric centers for free.
               </span>
             </div>
 
